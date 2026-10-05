@@ -55,6 +55,10 @@ This profile supports ChainMMO `characterBestLevel`, treated as monotonic progre
 
 ChainMMO GameWorld and Monad canonical state determine identity and best level. Participants trust the deployed Arovaq factory/profile/challenge bytecode and the configured GameWorld address. There is no backend, indexer, creator approval, or admin winner function. The creator chooses the objective and deadline before participants join but cannot change them or select winners afterward.
 
+The profile is a **trusted semantic configuration boundary**. Its `staticcall` proves what the configured contract returned during a transaction. ABI checks cannot establish that an arbitrary contract represents legitimate gameplay or that its getter is monotonic, non-transferable, or resistant to manipulation. A malicious target can report fabricated progression and make its own challenge pay; it cannot thereby change another challenge's accounting. The canonical Arovaq deployment must pin the intended ChainMMO GameWorld address. ChainMMO still needs no Arovaq integration.
+
+Ownership is checked at registration and claim. If a foreign game permits character transfer, these checks do not prove continuous custody or that the registered wallet personally performed each gameplay action. The verified condition is progression of the bound character while it is owned by the participant at settlement.
+
 ## Why Monad
 
 The primary foreign-game proof target is already deployed on Monad, so the integration reads its canonical state on the same network. This spike makes no claim that Arovaq requires Monad-specific execution features.
@@ -91,6 +95,8 @@ The fork test uses `MONAD_RPC_URL`; the verified public Monad endpoint used for 
 - Ownership may change. It is checked at registration and again at claim; the registered character cannot be bound to another participant in that challenge.
 - Contract timestamps use the chain clock and have normal block-producer timestamp limitations.
 - A failed payout reverts claim effects; a participant can select a different recipient.
+- The sponsor can select a recipient for expired-fund reclaim, so a sponsor contract that rejects native transfers can still recover unused funding.
+- Registration rejects a baseline and delta whose target exceeds the `uint32` range returned by `characterBestLevel`.
 
 ## Known limitations
 
@@ -98,6 +104,7 @@ The fork test uses `MONAD_RPC_URL`; the verified public Monad endpoint used for 
 - Real ChainMMO character #42 is only used for read compatibility; the test does not impersonate its owner for registration.
 - First-to-claim is not first-to-achieve. A qualifying participant must claim before the deadline.
 - No Race mode, token rewards, entry fees, or transferable-balance competitions.
+- Forced native transfers can make the contract balance exceed its internal reward allocation. They do not increase claim or reclaim entitlements; unsolicited excess is not recoverable through the Phase 2 interface.
 - Foundry fuzz and invariant suites are local EVM checks; they do not substitute for external security review.
 
 ## Demo flow

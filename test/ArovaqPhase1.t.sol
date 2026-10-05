@@ -129,7 +129,7 @@ contract ArovaqPhase1Test {
         require(!changed && c.levelDelta() == 3, "rules mutable");
         vm.prank(CREATOR);
         vm.expectRevert(ArovaqProgressionChallenge.NotExpired.selector);
-        c.reclaimExpired();
+        c.reclaimExpired(payable(CREATOR));
         require(address(c).balance == 2 ether, "active reward custody");
     }
 
@@ -146,7 +146,7 @@ contract ArovaqPhase1Test {
         uint256 creatorBefore = CREATOR.balance;
         vm.warp(deadline);
         vm.prank(CREATOR);
-        c.reclaimExpired();
+        c.reclaimExpired(payable(CREATOR));
         require(CREATOR.balance - creatorBefore == 2 ether, "unused funding return");
         require(address(c).balance == 0 && c.remainingFunding() == 0, "stuck funds");
         vm.prank(ALICE);
@@ -154,7 +154,7 @@ contract ArovaqPhase1Test {
         c.claim(payable(ALICE));
         vm.prank(CREATOR);
         vm.expectRevert(ArovaqProgressionChallenge.AlreadyClaimed.selector);
-        c.reclaimExpired();
+        c.reclaimExpired(payable(CREATOR));
     }
 
     function testExpiredReclaimCannotBeCalledByNonCreator() public {
@@ -163,7 +163,7 @@ contract ArovaqPhase1Test {
         vm.warp(deadline);
         vm.prank(ALICE);
         vm.expectRevert(ArovaqProgressionChallenge.Unauthorized.selector);
-        ArovaqProgressionChallenge(challenge).reclaimExpired();
+        ArovaqProgressionChallenge(challenge).reclaimExpired(payable(CREATOR));
     }
 
     function testMaxClaimsCapsRewardsAndChallengesAreIsolated() public {
@@ -274,16 +274,17 @@ contract ArovaqPhase1Test {
             storedId == characterId && storedBaseline == baseline && target == uint64(baseline) + delta && registered,
             "fuzz baseline"
         );
+        uint32 reachableTarget = baseline + delta; // Both fuzz inputs are bounded above before this addition.
         vm.prank(participant);
-        game.progress(characterId, uint32(target), 6);
-        uint256 beforeBalance = participant.balance;
+        game.progress(characterId, reachableTarget, 6);
+        uint256 beforeBalance = ALICE.balance;
         vm.prank(participant);
-        c.claim(payable(participant));
-        require(participant.balance - beforeBalance == reward && c.successfulClaims() == 1, "fuzz claim");
+        c.claim(payable(ALICE));
+        require(ALICE.balance - beforeBalance == reward && c.successfulClaims() == 1, "fuzz claim");
         vm.warp(deadline);
         uint256 creatorBefore = CREATOR.balance;
         vm.prank(CREATOR);
-        c.reclaimExpired();
+        c.reclaimExpired(payable(CREATOR));
         uint256 refunded = uint256(maxClaims - 1) * reward;
         require(CREATOR.balance - creatorBefore == refunded, "fuzz unused rewards");
         require(reward + refunded == reward * maxClaims, "fuzz conservation");

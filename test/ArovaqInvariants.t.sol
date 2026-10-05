@@ -52,7 +52,7 @@ contract ArovaqInvariantHandler {
         if (!challenge.fundsReclaimed()) {
             uint256 amount = challenge.remainingFunding();
             vm.prank(creator);
-            try challenge.reclaimExpired() {
+            try challenge.reclaimExpired(payable(creator)) {
                 reclaimed += amount;
             } catch {}
         }

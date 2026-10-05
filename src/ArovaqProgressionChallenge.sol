@@ -38,6 +38,7 @@ contract ArovaqProgressionChallenge {
     error NotRegistered();
     error AlreadyClaimed();
     error NotComplete();
+    error UnreachableTarget();
     error RewardsExhausted();
     error Unauthorized();
     error TransferFailed();
@@ -45,7 +46,7 @@ contract ArovaqProgressionChallenge {
 
     event Registered(address indexed participant, uint256 indexed characterId, uint32 baseline, uint64 target);
     event RewardClaimed(address indexed participant, address indexed recipient, uint256 amount, uint256 characterId);
-    event ExpiredFundsReclaimed(address indexed creator, uint256 amount);
+    event ExpiredFundsReclaimed(address indexed creator, address indexed recipient, uint256 amount);
 
     modifier nonReentrant() {
         if (entered) revert Reentrancy();
@@ -86,6 +87,7 @@ contract ArovaqProgressionChallenge {
         (address owner, uint32 baseline) = profile.readProgression(characterId);
         if (owner != msg.sender) revert NotCharacterOwner();
         uint64 target = uint64(baseline) + uint64(levelDelta);
+        if (target > type(uint32).max) revert UnreachableTarget();
         registrations[msg.sender] = Registration(characterId, baseline, target, true, false);
         characterParticipant[characterId] = msg.sender;
         emit Registered(msg.sender, characterId, baseline, target);
@@ -110,15 +112,15 @@ contract ArovaqProgressionChallenge {
     }
 
     /// @notice Creator can reclaim only unused reward inventory after claims close.
-    function reclaimExpired() external nonReentrant {
+    function reclaimExpired(address payable recipient) external nonReentrant {
         if (msg.sender != creator) revert Unauthorized();
         if (block.timestamp < deadline) revert NotExpired();
         if (fundsReclaimed) revert AlreadyClaimed();
         fundsReclaimed = true;
         uint256 amount = remainingFunding;
         remainingFunding = 0;
-        if (amount != 0) _pay(payable(creator), amount);
-        emit ExpiredFundsReclaimed(creator, amount);
+        if (amount != 0) _pay(recipient, amount);
+        emit ExpiredFundsReclaimed(creator, recipient, amount);
     }
 
     function readCurrent(uint256 characterId) external view returns (address owner, uint32 bestLevel) {
