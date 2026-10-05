@@ -137,7 +137,9 @@ Race mode enabled? NO — canonical total ordering is not established
 
 Branch: `feat/arovaq-phase-1-contract-proof`.
 
-The implementation and initial evidence report are committed locally. The final report commit and clean working-tree status are recorded in the final response. No remote is configured and no push was made.
+Implementation commit: `ef9bad5f8a5522a98e5b0eee8401f247459d865d`.
+
+The final report commit and clean working-tree status are recorded in the final response. No remote is configured and no push was made.
 
 ## Recommendation
 
