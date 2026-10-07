@@ -18,7 +18,7 @@ describe('deployment-pending experience', () => {
     } else {
       expect(screen.getAllByText(config.label).length).toBeGreaterThan(0);
     }
-    expect(screen.getByRole('button', { name: /CREATE A CHALLENGE/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Create$/ })).toBeInTheDocument();
     if (config.mode === 'MONAD_MAINNET') expect(screen.getByText(/EXTERNAL WORLD \/ LIVE READ/)).toBeInTheDocument();
   });
 
