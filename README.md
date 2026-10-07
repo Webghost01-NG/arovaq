@@ -119,6 +119,8 @@ Phase 1 demonstrates (1) direct read of the deployed ChainMMO GameWorld, (2) loc
 
 The deployment-pending React/TypeScript frontend lives in `web/`. It uses viem for typed reads and writes; all Arovaq and ChainMMO ABIs in `web/src/generated/abis.ts` are synchronized from the compiled Foundry artifacts. The sync script validates required functions and events before writing or checking generated output.
 
+The Vercel project uses `web/` as its project root, builds with the frontend package scripts, and tracks `main` for production. Monad Mainnet remains read-only while Arovaq deployment addresses are unset and `VITE_ENABLE_MAINNET_WRITES` is disabled.
+
 > **The frontend uses ABIs generated from the accepted Solidity contracts. Deployment addresses are environment-specific configuration.**
 
 Install and validate:
