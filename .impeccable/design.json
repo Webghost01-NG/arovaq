@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-07T19:27:27Z",
+  "title": "Design System: Arovaq",
+  "extensions": {
+    "colorMeta": {
+      "ink": { "role": "primary", "displayName": "Signal Ink", "tonalRamp": ["#101010", "#30302e", "#4f4f4b", "#6d6c67", "#8a8983", "#aaa9a3", "#cbc9c3", "#f3f2ee"] },
+      "paper": { "role": "neutral", "displayName": "Warm Paper", "tonalRamp": ["#101010", "#302f2b", "#4e4d48", "#6c6b65", "#898882", "#aaa9a2", "#cbc9c2", "#f3f2ee"] },
+      "white": { "role": "neutral", "displayName": "Proof White", "tonalRamp": ["#101010", "#30302e", "#4f4f4b", "#6d6c67", "#8a8983", "#aaa9a3", "#cbc9c3", "#ffffff"] },
+      "ash": { "role": "neutral", "displayName": "Soft Ash", "tonalRamp": ["#101010", "#30302e", "#4f4f4b", "#6d6c67", "#8a8983", "#aaa9a3", "#e4e3de", "#ffffff"] },
+      "rule": { "role": "neutral", "displayName": "Rule Gray", "tonalRamp": ["#101010", "#30302e", "#4f4f4b", "#6d6c67", "#8a8983", "#aaa9a3", "#b9b8b2", "#f3f2ee"] },
+      "muted": { "role": "neutral", "displayName": "Read Gray", "tonalRamp": ["#101010", "#30302e", "#4f4f4b", "#65645f", "#8a8983", "#aaa9a3", "#cbc9c3", "#f3f2ee"] },
+      "quiet": { "role": "neutral", "displayName": "Quiet Gray", "tonalRamp": ["#101010", "#30302e", "#4f4f4b", "#6d6c67", "#888780", "#aaa9a3", "#cbc9c3", "#f3f2ee"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Editorial Display", "purpose": "Large landing and section statements." },
+      "body": { "displayName": "Product Sans", "purpose": "Instructions, descriptions and readable interface copy." },
+      "label": { "displayName": "Protocol Mono", "purpose": "Chain, game, event, status and measurement metadata." }
+    },
+    "shadows": [
+      { "name": "transaction-overlay", "value": "0 12px 34px #0002", "purpose": "Separate temporary transaction feedback from the page." }
+    ],
+    "motion": [
+      { "name": "interaction", "value": "180ms ease", "purpose": "Button fill, arrow and row feedback." },
+      { "name": "progress", "value": "360ms cubic-bezier(.17,.67,.32,1)", "purpose": "Transform-only progression rail movement." },
+      { "name": "reduced-motion", "value": "prefers-reduced-motion: reduce", "purpose": "Collapse nonessential transition and loading motion." }
+    ],
+    "breakpoints": [
+      { "name": "tablet", "value": "820px" },
+      { "name": "phone", "value": "560px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "A decisive rectangular action for create, register and claim.",
+      "html": "<button class=\"ds-primary\">VERIFY + CLAIM <span aria-hidden=\"true\">↗</span></button>",
+      "css": ".ds-primary { min-height: 46px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: space-between; gap: 20px; border: 1px solid #101010; border-radius: 0; background: #101010; color: #fff; font: 9px 'IBM Plex Mono', monospace; letter-spacing: .035em; text-transform: uppercase; transition: background 180ms ease, color 180ms ease; } .ds-primary:hover { background: #f3f2ee; color: #101010; } .ds-primary:focus-visible { outline: 2px solid #101010; outline-offset: 4px; }"
+    },
+    {
+      "name": "Quiet Action",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "A text-led secondary action with a structural underline.",
+      "html": "<button class=\"ds-quiet\">REFRESH CANONICAL STATE <span aria-hidden=\"true\">↻</span></button>",
+      "css": ".ds-quiet { min-height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: space-between; gap: 16px; border: 0; border-bottom: 1px solid #b9b8b2; border-radius: 0; background: transparent; color: #101010; font: 9px 'IBM Plex Mono', monospace; text-transform: uppercase; } .ds-quiet:hover { border-color: #101010; } .ds-quiet:focus-visible { outline: 2px solid #101010; outline-offset: 4px; }"
+    },
+    {
+      "name": "Monospaced Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A square, low-chrome field for entity IDs and numeric settings.",
+      "html": "<label class=\"ds-field\"><span>CHARACTER ID</span><input inputmode=\"numeric\" value=\"42\" /></label>",
+      "css": ".ds-field { display: grid; gap: 8px; color: #101010; font: 9px 'IBM Plex Mono', monospace; letter-spacing: .05em; } .ds-field input { width: 100%; min-height: 48px; padding: 0 10px; border: 0; border-bottom: 1px solid #101010; border-radius: 0; background: #f3f2ee; color: #101010; font: 16px 'IBM Plex Mono', monospace; } .ds-field input:focus-visible { outline: 2px solid #101010; outline-offset: 2px; }"
+    },
+    {
+      "name": "Competition Row",
+      "kind": "custom",
+      "description": "A numbered ruled record for an event, not a promotional card.",
+      "html": "<div class=\"ds-event\"><span>001</span><strong>ADVANCE +3 BEST LEVELS</strong><b>1 MON</b><span>08 / 10 CLAIMS</span></div>",
+      "css": ".ds-event { min-height: 72px; padding: 14px 12px; display: grid; grid-template-columns: 44px 1fr auto auto; align-items: center; gap: 16px; border-top: 1px solid #b9b8b2; color: #101010; font-family: 'IBM Plex Mono', monospace; font-size: 9px; } .ds-event strong { font: 500 15px 'Space Grotesk', sans-serif; } .ds-event:hover { background: #101010; color: #fff; } @media (max-width: 560px) { .ds-event { grid-template-columns: 34px 1fr auto; gap: 9px; } .ds-event > :last-child { grid-column: 2 / 4; } }"
+    },
+    {
+      "name": "State Trace",
+      "kind": "custom",
+      "description": "The connected seven-step path from foreign game state to sponsored reward.",
+      "html": "<ol class=\"ds-trace\"><li>ONCHAIN GAME <b>CHAINMMO</b></li><li>CANONICAL STATE <b>BEST LEVEL</b></li><li>COMPETITION <b>+3</b></li><li>BASELINE <b>17</b></li><li>TARGET <b>20</b></li><li>VERIFICATION <b>LIVE READ</b></li><li>REWARD <b>1 MON</b></li></ol>",
+      "css": ".ds-trace { margin: 0; padding: 0; list-style: none; background: #101010; color: #fff; font: 8px 'IBM Plex Mono', monospace; } .ds-trace li { min-height: 36px; position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px 0 30px; border-left: 1px solid #777; } .ds-trace li::before { width: 7px; height: 7px; position: absolute; left: -4px; border: 1px solid #fff; background: #101010; content: ''; } .ds-trace b { font-weight: 500; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The State Trace",
+    "overview": "Arovaq treats competition as a legible path through a game's existing canonical state. A seven-step trace moves from game and state, through the participant's baseline and target, into verification and reward. It gives each screen a product-specific visual grammar instead of relying on generic dashboard cards.\n\nThe interface pairs editorial scale with compact protocol notation. Large, tightly set headlines establish the stakes; ruled rows, exact numbers and monospace labels make the mechanics inspectable. The palette stays monochrome, with black surfaces marking active systems and important state changes.",
+    "keyCharacteristics": [
+      "Monochrome, high-contrast surfaces.",
+      "Editorial headline scale balanced by technical labels.",
+      "State progression shown as a connected trace and measured rail.",
+      "Square geometry and thin rules instead of rounded card stacks."
+    ],
+    "rules": [
+      { "name": "The State Trace Rule", "body": "Arovaq screens should make the relationship between canonical game state, participant baseline, target, verification and reward easy to follow.", "section": "overview" },
+      { "name": "The Monochrome Rule", "body": "Use state inversion and typographic hierarchy to distinguish important states; do not introduce a brand accent color.", "section": "colors" },
+      { "name": "The Scale Contrast Rule", "body": "Pair one oversized statement with quiet but readable metadata; do not give every label headline weight.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Prefer rules and tonal inversion; reserve elevation for an overlay that must sit above current content.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use rules, alignment and state inversion to structure the experience.",
+      "Do make canonical numbers and participant-specific baselines visually prominent.",
+      "Do keep chain and game metadata monospace and concise.",
+      "Do reduce nonessential motion when prefers-reduced-motion is active."
+    ],
+    "donts": [
+      "Don't use gradients, glass effects, pill-heavy controls or generic dashboard card grids.",
+      "Don't imply chronological first achievement; settlement is by first valid claim.",
+      "Don't use color to imply live mainnet deployment or reward activity that is not configured."
+    ]
+  }
+}
