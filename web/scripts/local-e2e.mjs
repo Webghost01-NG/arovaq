@@ -1,0 +1,93 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { unlink } from 'node:fs/promises';
+import { chromium } from '@playwright/test';
+
+const webDir = process.cwd();
+const demo = spawn('node', ['scripts/local-demo.mjs'], { cwd: webDir, stdio: ['ignore', 'pipe', 'inherit'] });
+let demoOutput = '';
+const demoReady = new Promise((resolve, reject) => {
+  const timeout = setTimeout(() => reject(new Error(`Local chain did not start. ${demoOutput}`)), 30_000);
+  demo.stdout.on('data', chunk => {
+    demoOutput += chunk.toString();
+    if (demoOutput.includes('LOCAL / DEMO CHAIN READY')) { clearTimeout(timeout); resolve(); }
+  });
+  demo.once('exit', code => { if (!demoOutput.includes('LOCAL / DEMO CHAIN READY')) reject(new Error(`Local demo exited (${code}). ${demoOutput}`)); });
+});
+let vite;
+let browser;
+try {
+  await demoReady;
+  vite = spawn('npm', ['run', 'dev', '--', '--port', '4178', '--strictPort'], { cwd: webDir, stdio: 'ignore' });
+  let ready = false;
+  for (let i = 0; i < 100 && !ready; i++) {
+    try { ready = (await fetch('http://127.0.0.1:4178')).ok; } catch { await new Promise(resolve => setTimeout(resolve, 200)); }
+  }
+  if (!ready) throw new Error('Vite did not start for browser E2E.');
+  const executablePath = process.env.CHROME_PATH || '/home/web-ghost/.local/bin/google-chrome';
+  browser = await chromium.launch({ headless: true, executablePath, args: ['--no-sandbox'] });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.on('pageerror', error => console.error(`BROWSER ERROR: ${error.message}`));
+  await page.addInitScript(() => {
+    const rpc = 'http://127.0.0.1:8545';
+    let accountIndex = 0;
+    const call = async (method, params = []) => {
+      const response = await fetch(rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+      const result = await response.json();
+      if (result.error) throw Object.assign(new Error(result.error.message), { code: result.error.code, data: result.error.data });
+      return result.result;
+    };
+    const provider = {
+      request: async ({ method, params = [] }) => {
+        if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [(await call('eth_accounts'))[accountIndex]];
+        if (method === 'wallet_switchEthereumChain') return null;
+        return call(method, params);
+      },
+      on: () => provider,
+      removeListener: () => provider,
+    };
+    Object.defineProperty(window, 'ethereum', { value: provider, configurable: true });
+    Object.defineProperty(window, '__switchArovaqDemoAccount', { value: (index) => { accountIndex = index; } });
+  });
+  await page.goto('http://127.0.0.1:4178');
+  await page.getByRole('button', { name: 'CONNECT WALLET', exact: true }).click();
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.getByRole('button', { name: /CREATE & FUND CHALLENGE/ }).click();
+  await page.getByText(/Create challenge: confirmed/).waitFor({ timeout: 20_000 });
+  await page.getByRole('button', { name: /EVENT \/ 01/ }).click();
+  await page.getByText('ENTER THE WORLD').waitFor();
+
+  await page.getByLabel('CHAINMMO CHARACTER ID').fill('42');
+  await page.getByRole('button', { name: /CHECK CHARACTER/ }).click();
+  await page.getByText('This character is not controlled by the connected wallet.').waitFor();
+
+  await page.evaluate(() => window.__switchArovaqDemoAccount(1));
+  const connectedButton = page.locator('.wallet-btn.connected');
+  await connectedButton.click();
+  await page.getByRole('button', { name: 'CONNECT WALLET', exact: true }).click();
+  await page.getByRole('button', { name: /CHECK CHARACTER/ }).click();
+  await page.getByText(/CANONICAL OWNER/).waitFor();
+  await page.getByRole('button', { name: /REGISTER CHARACTER/ }).click();
+  await page.getByText(/Register character: confirmed/).waitFor({ timeout: 20_000 });
+  await page.getByText('CANONICALLY BOUND ✓').waitFor();
+  await page.getByText('KEEP PLAYING').waitFor();
+  await page.getByRole('button', { name: /DEMO: PROGRESS CHARACTER/ }).click();
+  await page.getByText(/Demo progression: confirmed/).waitFor({ timeout: 20_000 });
+  await page.getByRole('button', { name: /CLAIM 1 MON/ }).click();
+  await page.getByText(/Claim reward: confirmed/).waitFor({ timeout: 20_000 });
+  await page.getByText('OBJECTIVE VERIFIED').waitFor();
+  await page.getByText('REWARD CLAIMED').waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  if (overflow) throw new Error('Mobile layout overflows the 390px viewport.');
+  console.log('BROWSER E2E PASS: create/fund → owner check → register/baseline → canonical fixture progression → claim; 390px mobile viewport has no horizontal overflow.');
+} catch (error) {
+  console.error(error instanceof Error ? error.stack : String(error));
+  process.exitCode = 1;
+} finally {
+  await browser?.close().catch(() => {});
+  vite?.kill('SIGTERM');
+  demo.kill('SIGTERM');
+  await once(demo, 'exit').catch(() => {});
+  await unlink(`${webDir}/.env.local`).catch(() => {});
+}
