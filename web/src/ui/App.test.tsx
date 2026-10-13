@@ -20,6 +20,10 @@ describe('deployment-pending experience', () => {
     }
     expect(screen.getByRole('button', { name: /^Create$/ })).toBeInTheDocument();
     if (config.mode === 'MONAD_MAINNET') expect(screen.getByText(/EXTERNAL WORLD \/ LIVE READ/)).toBeInTheDocument();
+    if (config.mode === 'MONAD_MAINNET' && !config.factory) {
+      fireEvent.click(screen.getByRole('button', { name: /^Create$/ }));
+      expect(screen.getByRole('button', { name: /MAINNET DEPLOYMENT PENDING/ })).toBeDisabled();
+    }
   });
 
   it('shows a wrong-network state after wallet connection', async () => {
@@ -31,5 +35,15 @@ describe('deployment-pending experience', () => {
     fireEvent.click(screen.getByRole('button', { name: 'CONNECT WALLET' }));
     await waitFor(() => expect(screen.getByText(`Wallet network does not match ${config.label}.`)).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'SWITCH NETWORK' })).toBeInTheDocument();
+  });
+
+  it('explains a rejected wallet connection without implying a transaction occurred', async () => {
+    Object.defineProperty(window, 'ethereum', {
+      configurable: true,
+      value: { request: vi.fn(async () => { throw new Error('User rejected the request.'); }) },
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'CONNECT WALLET' }));
+    await waitFor(() => expect(screen.getByText('Wallet request was rejected. No transaction was submitted.')).toBeInTheDocument());
   });
 });

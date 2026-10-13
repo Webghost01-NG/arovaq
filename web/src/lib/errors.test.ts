@@ -3,7 +3,7 @@ import { friendlyError } from './errors';
 
 describe('wallet and contract errors', () => {
   it.each([
-    ['User rejected request', 'Transaction rejected in wallet. No funds moved.'],
+    ['User rejected request', 'Wallet request was rejected. No transaction was submitted.'],
     ['NotCharacterOwner()', 'This character is not controlled by the connected wallet.'],
     ['AlreadyRegistered()', 'This wallet or character is already registered.'],
     ['NotComplete()', 'Keep playing: the canonical best level is below your target.'],

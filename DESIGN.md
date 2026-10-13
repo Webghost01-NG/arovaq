@@ -8,7 +8,7 @@ colors:
   ash: "#e4e3de"
   rule: "#b9b8b2"
   muted: "#65645f"
-  quiet: "#888780"
+  quiet: "#65645f"
 typography:
   display:
     fontFamily: "Space Grotesk, Arial, sans-serif"
@@ -23,7 +23,7 @@ typography:
     lineHeight: 1.5
   label:
     fontFamily: "IBM Plex Mono, Courier New, monospace"
-    fontSize: "8px"
+    fontSize: "11px"
     fontWeight: 400
     lineHeight: 1.4
     letterSpacing: "0.05em"
@@ -81,7 +81,7 @@ Black, warm off-white and a restrained gray scale carry the hierarchy; there is 
 - **Soft Ash** (#e4e3de): Quiet progress tracks and subdued separators.
 - **Rule Gray** (#b9b8b2): Structural dividers and unfilled rules.
 - **Read Gray** (#65645f): Secondary labels and supporting copy.
-- **Quiet Gray** (#888780): Low-priority coordinates and decorative metadata only.
+- **Quiet Gray** (#65645f): Secondary coordinates and metadata with readable contrast.
 
 ### Named Rules
 **The State Trace Rule.** Arovaq screens should make the relationship between canonical game state, participant baseline, target, verification and reward easy to follow.
@@ -103,7 +103,7 @@ Black, warm off-white and a restrained gray scale carry the hierarchy; there is 
 - **Headline** (500–600, roughly `clamp(2.65rem, 12vw, 6rem)`, 0.84–0.9 line-height): Screen titles and section statements.
 - **Title** (400–500, 20–45px): Game, objective and outcome modules.
 - **Body** (400, 12–15px, 1.45–1.6 line-height): Instructions and explanatory copy, kept to readable measures.
-- **Label** (400–500, 8–10px, 0.04–0.075em, uppercase): Chain, game, event, state and form metadata.
+- **Label** (400–500, 11px minimum, 0.04–0.075em, uppercase): Chain, game, event, state and form metadata.
 
 ### Named Rules
 **The Scale Contrast Rule.** Pair one oversized statement with quiet but readable metadata; do not give every label headline weight.

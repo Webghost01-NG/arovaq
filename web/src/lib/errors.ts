@@ -1,6 +1,6 @@
 export function friendlyError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
-  if (/User rejected|User denied|rejected the request/i.test(raw)) return 'Transaction rejected in wallet. No funds moved.';
+  if (/User rejected|User denied|rejected the request/i.test(raw)) return 'Wallet request was rejected. No transaction was submitted.';
   if (/insufficient funds/i.test(raw)) return 'Insufficient MON for funding or network gas.';
   if (/NotCharacterOwner|owner mismatch/i.test(raw)) return 'This character is not controlled by the connected wallet.';
   if (/AlreadyRegistered|CharacterAlreadyBound/i.test(raw)) return 'This wallet or character is already registered.';
