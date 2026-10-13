@@ -4,16 +4,17 @@
 
 **Live frontend:** [arovaq.vercel.app](https://arovaq.vercel.app/)
 
-**Deployment status:** Arovaq contracts are **not deployed** to Monad Mainnet. The production frontend is Mainnet read-only, the factory address is unset, and Mainnet writes are disabled. ChainMMO compatibility is verified through direct read-only RPC calls.
+**Deployment status:** Arovaq is deployed to Monad Mainnet. The factory, constructor-created ChainMMO profile, one sponsor-funded +1 challenge, and character #65 registration are confirmed onchain. Character #65 remains at best level 1 against target 2, so the live reward has not been claimed. The production frontend is configured for the verified Mainnet factory; the end-to-end Mainnet progression/claim is incomplete.
 
 ## Judge-facing walkthrough
 
-1. Open the [live Arovaq frontend](https://arovaq.vercel.app/) and show the explicit Mainnet deployment-pending state.
-2. Read ChainMMO character #42 from the live GameWorld and explain that the game is independently deployed and has no Arovaq integration.
-3. For the full interaction path, run `cd web && npm run test:e2e`. The script labels its environment **LOCAL / DEMO** and exercises create/fund, owner rejection, registration, baseline capture, fixture progression, reward claim, expiry, and sponsor reclaim against locally deployed copies of the accepted Arovaq contracts. It is simulation evidence, not a Mainnet challenge.
-4. Show the fork test (`forge test --match-path test/ChainMMOFork.t.sol -vv`) as the real ChainMMO read compatibility proof; it does not impersonate an owner or send a Mainnet write.
+1. Open the [live Arovaq frontend](https://arovaq.vercel.app/) and show the configured Mainnet challenge board.
+2. Open challenge `0xfd0bc253189f58fb441b135ed4b608bc3a435b84`; show its actual character #65 registration, baseline 1, target 2, and 0.001 MON reward.
+3. Read character #65 directly from ChainMMO and explain the game is independently deployed. Its current Mainnet best level remains 1; do not claim a Mainnet reward was paid.
+4. For a deterministic end-to-end fallback, run `cd web && npm run demo:fork-live`. It forks real ChainMMO/Arovaq state and plays the actual game calls locally on Anvil. Every write is labeled **FORK / SIMULATION**, not Monad Mainnet activity.
+5. `cd web && npm run test:e2e` covers local create/fund, owner rejection, registration/baseline, fixture progression/claim, expiry/reclaim, wrong network, and 390px mobile behavior.
 
-The hackathon portal currently presents a sign-in/registration screen. A final demo video is not included in this repository and must be recorded and uploaded by the project owner. Do not describe the local fixture flow as live ChainMMO gameplay or an Arovaq Mainnet deployment.
+The hackathon portal currently presents a sign-in/registration screen. A final demo video is not included in this repository and must be recorded and uploaded by the project owner. Do not describe fork or local fixture transactions as Mainnet gameplay or an Arovaq Mainnet claim.
 
 ## Technical evidence
 
@@ -21,13 +22,13 @@ The hackathon portal currently presents a sign-in/registration screen. A final d
 - Foundry-generated frontend ABI synchronization: `cd web && npm run sync:abis`; validation: `npm run check:abis`.
 - Local transaction-backed browser flow: `cd web && npm run test:e2e`.
 - Read-only ChainMMO compatibility: `MONAD_RPC_URL=https://rpc.monad.xyz forge test --match-path test/ChainMMOFork.t.sol -vv`.
-- Current Monad deployment estimate and no-write evidence: [`DEPLOYMENT.md`](DEPLOYMENT.md).
+- Monad deployment and live transaction evidence: [`DEPLOYMENT.md`](DEPLOYMENT.md), [`MAINNET_TX_LEDGER.csv`](MAINNET_TX_LEDGER.csv).
 
 ### Contract verification
 
-No Arovaq Mainnet address exists yet, so no Arovaq explorer verification is claimed. After an authorized deployment, verify the factory from `src/ArovaqFactory.sol` using the exact compiler settings in [`foundry.toml`](foundry.toml) and the constructor argument used by [`DeployArovaq.s.sol`](script/DeployArovaq.s.sol). The factory constructor creates the profile; check the deployed factory's `profile()` and that profile's `gameWorld()` against the frozen ChainMMO address. Record deployed addresses, transaction hashes, block, and source-verification result in `DEPLOYMENT.md` before enabling any frontend write setting.
+The factory and profile are deployed at the addresses in [`DEPLOYMENT.md`](DEPLOYMENT.md). Explorer source verification has not been completed; live RPC bytecode and constructor configuration checks passed. The factory constructor creates the profile; its `gameWorld()` read equals the frozen ChainMMO address. The frontend uses compiled accepted ABIs and public environment-specific addresses.
 
-The Phase 2 security report records the accepted contract boundary and limitations; [`PHASE2_REPORT.md`](PHASE2_REPORT.md). The Phase 4 report records the deployment-pending frontend acceptance; [`PHASE4_REPORT.md`](PHASE4_REPORT.md).
+The Phase 2 security report records the accepted contract boundary and limitations; [`PHASE2_REPORT.md`](PHASE2_REPORT.md). The Phase 4 report records frontend acceptance; [`PHASE4_REPORT.md`](PHASE4_REPORT.md).
 
 ## What is Arovaq?
 
@@ -129,8 +130,8 @@ The fork test uses `MONAD_RPC_URL`; the verified public Monad endpoint used for 
 
 ## Known limitations
 
-- No Arovaq deployment or real participant transaction was made.
-- Real ChainMMO character #42 is only used for read compatibility; the test does not impersonate its owner for registration.
+- A real ChainMMO character was created, a live +1 challenge was funded, and character #65 was registered with canonical baseline 1 / target 2. Mainnet progression and reward claim remain unproven.
+- The fork acceptance runner impersonates the controlled wallet only inside local Anvil; its simulated game and claim transactions are not Mainnet writes.
 - First-to-claim is not first-to-achieve. A qualifying participant must claim before the deadline.
 - No Race mode, token rewards, entry fees, or transferable-balance competitions.
 - Forced native transfers can make the contract balance exceed its internal reward allocation. They do not increase claim or reclaim entitlements; unsolicited excess is not recoverable through the Phase 2 interface.
@@ -146,9 +147,9 @@ Phase 1 demonstrates (1) direct read of the deployed ChainMMO GameWorld, (2) loc
 
 ## Phase 4 frontend
 
-The deployment-pending React/TypeScript frontend lives in `web/`. It uses viem for typed reads and writes; all Arovaq and ChainMMO ABIs in `web/src/generated/abis.ts` are synchronized from the compiled Foundry artifacts. The sync script validates required functions and events before writing or checking generated output.
+The React/TypeScript frontend lives in `web/`. It uses viem for typed reads and writes; all Arovaq and ChainMMO ABIs in `web/src/generated/abis.ts` are synchronized from the compiled Foundry artifacts. The sync script validates required functions and events before writing or checking generated output.
 
-The Vercel project uses `web/` as its project root, builds with the frontend package scripts, and tracks `main` for production. Monad Mainnet remains read-only while Arovaq deployment addresses are unset and `VITE_ENABLE_MAINNET_WRITES` is disabled.
+The Vercel project uses `web/` as its project root, builds with the frontend package scripts, and tracks `main` for production. Production Monad Mainnet configuration includes the deployed factory and start block, with writes enabled. `.env.example` defaults to read-only for local safety.
 
 > **The frontend uses ABIs generated from the accepted Solidity contracts. Deployment addresses are environment-specific configuration.**
 
@@ -169,10 +170,10 @@ npm run build
 `VITE_AROVAQ_ENV` selects `LOCAL`, `FORK`, or `MONAD_MAINNET`.
 
 - `LOCAL` only accepts loopback RPC on chain ID `31337`. `npm run demo:local` starts Anvil, deploys the accepted factory and a clearly labeled test game fixture, seeds local character #42 at level 17, and writes ignored local addresses to `.env.local`. Start the frontend in another terminal with `npm run dev`.
-- `FORK` only accepts loopback RPC on chain ID `31338`. `npm run demo:fork` forks Monad Mainnet at the public RPC head, deploys Arovaq locally against the real ChainMMO GameWorld, and prints Arovaq-profile reads of the forked game state. Fork writes are simulations.
-- `MONAD_MAINNET` uses Monad chain ID `143` and the separately configured ChainMMO GameWorld. Arovaq addresses remain unset until real deployment. If configured, mainnet writes still remain disabled unless `VITE_ENABLE_MAINNET_WRITES=true` is explicitly set in the build configuration.
+- `FORK` only accepts loopback RPC on chain ID `31338`. `npm run demo:fork` deploys Arovaq locally against the real ChainMMO GameWorld and prints canonical reads. `npm run demo:fork-live` uses a separate Anvil fork to exercise the existing deployed Arovaq challenge and real ChainMMO game calls locally. Fork writes are simulations.
+- `MONAD_MAINNET` uses Monad chain ID `143`, the deployed Arovaq factory from public environment configuration, and the separately deployed ChainMMO GameWorld. Missing factory configuration fails closed; local addresses are never substituted. Mainnet writes require `VITE_ENABLE_MAINNET_WRITES=true` in the production build configuration.
 
-LOCAL and FORK reject non-loopback RPC URLs. There is no fallback from a missing Mainnet Arovaq address to a local address. The application reads the real ChainMMO contract in Mainnet mode even while Arovaq deployment is pending.
+LOCAL and FORK reject non-loopback RPC URLs. There is no fallback from a missing Mainnet Arovaq address to a local address. The application reads the real ChainMMO contract in Mainnet mode; the Arovaq factory is now configured at its verified deployment address.
 
 ## Local end-to-end
 
@@ -195,11 +196,11 @@ A participant registers a character they control. The accepted contract captures
 
 ## Mainnet deployment status
 
-**Arovaq Mainnet deployment is currently pending MON funding.** Phase 4 does not deploy Arovaq, create/fund a Mainnet challenge, register a Mainnet player, or claim a Mainnet reward. Use [MAINNET_HANDOFF.md](MAINNET_HANDOFF.md) after the authorized deployer is funded.
+**Arovaq Mainnet is deployed.** The factory is `0x8cd2DA9E45D18c47A803f065a3625AE68bF37B17`; the profile is `0x447047cC695ceb920D7BD2D7e19F569855Ba4D7C`. Challenge `0xfd0bc253189f58fb441b135ed4b608bc3a435b84` is funded with 0.001 MON; character #65 is registered at baseline 1 / target 2. The latest Mainnet level is 1 and no Mainnet claim has occurred. See [`DEPLOYMENT.md`](DEPLOYMENT.md) for transaction evidence and the remaining live-gameplay limitation.
 
 ## Known limitations
 
-- No Arovaq contracts are deployed on Monad Mainnet yet.
+- The live demo has not yet completed actual Mainnet gameplay progression and reward claim.
 - The local gameplay fixture is permissionless by design and is not a real game or integration.
 - Fork-mode Arovaq writes are local simulations. A fork identity must not be represented as a live participant transaction.
 - The profile is a trusted semantic configuration boundary: generic ABI reads cannot independently prove that arbitrary game state reflects legitimate or non-transferable gameplay.

@@ -2,9 +2,9 @@
 
 ## Status
 
-**DEPLOYED — LIVE RPC VERIFICATION PASSED.** Arovaq was deployed to Monad Mainnet on 2026-10-13. The factory and constructor-created profile are verified below. No challenge has been created or funded yet.
+**DEPLOYED — LIVE RPC VERIFICATION PASSED.** Arovaq factory/profile, a 0.001 MON +1 challenge, and character #65 registration are confirmed on Monad Mainnet. The character remains level 1 against target 2; no Mainnet reward claim has occurred.
 
-Preflight date: 2026-10-05 11:43 UTC. Deployment date: not applicable.
+Preflight date: 2026-10-13. Deployment date: 2026-10-13.
 
 ## Network and target
 
@@ -44,9 +44,13 @@ The deployment was one CREATE transaction. Receipt gas used was `1,943,815` at `
 ## Live acceptance status
 
 - Direct ChainMMO RPC read: **PASS**.
-- Deployed Arovaq profile → ChainMMO read: **PASS;** the profile's canonical read of character #42 matched the direct GameWorld getters.
-- Live owned-character registration/progression/claim: **BLOCKED; no Arovaq deployment**. Controlled character ownership was not asserted or impersonated.
-- Settlement authority: canonical onchain state remains the intended source; no backend, hosted API, or indexer was used to manufacture an acceptance result.
+- Arovaq deployed profile → ChainMMO reads: **PASS**.
+- Character #65 is genuinely owned by the authorized wallet. Registration tx `0xbd9a7ca1252e3bf60038f6b47acaaeb36a9f41e4accbdefec4a071e99565922a` captured baseline 1 and target 2.
+- Challenge `0xfd0bc253189f58fb441b135ed4b608bc3a435b84` is funded with 0.001 MON and expires at timestamp `1792019112`.
+- Mainnet gameplay progression/claim: **NOT COMPLETE**. Latest known best level remains 1.
+- Fork acceptance: `cd web && npm run demo:fork-live` completed actual ChainMMO game calls and Arovaq claim on a local Anvil fork. This is simulation, not Mainnet activity.
+- One equip transaction invocation at nonce 8 remains unresolved; do not send further Mainnet writes until reconciled. See `MAINNET_TX_LEDGER_NOTES.md`.
+- Settlement authority: canonical onchain state; no backend, hosted API, or indexer was used as authority.
 
 ## Historical read-only preflight and gas estimate (before deployment)
 
@@ -79,3 +83,14 @@ At that historical snapshot, the recorded deployer had **0 MON** and the local d
 ## Known limits
 
 Arovaq verifies ownership at registration and settlement and checks current canonical best-level progression. It does not prove continuous ownership, who personally played the character, chronological first achievement, or arbitrary game metric safety. ChainMMO has not been modified.
+
+
+## Confirmed live transactions
+
+See [`MAINNET_TX_LEDGER.csv`](MAINNET_TX_LEDGER.csv) for all eight confirmed transactions and cumulative gross outflow. Confirmed cumulative gross spend is `460406886000000000 wei` (`0.460406886 MON`). The challenge prize is included as gross committed value. Current wallet balance and the unresolved nonce are recorded in the accompanying ledger notes; no refund is netted against spend.
+
+### Latest canonical demo reads
+
+At block `113171516`, Monad RPC reported chain ID 143, non-empty code at the factory/profile/ChainMMO/challenge addresses, challenge registration `(characterId=65, baseline=1, target=2, registered=true, claimed=false)`, character owner equal to the authorized wallet, and best level 1. These are direct RPC observations; no hosted game API was used.
+
+The production frontend configuration is Mainnet and points to the verified factory/start block. Local `.env.example` keeps Mainnet writes disabled. Production enables writes because the accepted deployment is live; **no production browser transaction was used as QA**. The frontend and API remain subject to final production smoke verification.

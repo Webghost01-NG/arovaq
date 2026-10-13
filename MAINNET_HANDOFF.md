@@ -1,40 +1,23 @@
-# Arovaq Mainnet Handoff
+# Arovaq Mainnet Demo Handoff
 
-Arovaq Mainnet deployment is prepared but has **not** been authorized or broadcast. The signer is locally configured and verified, and the current balance is sufficient for the factory deployment and a small demo reserve. This checklist contains no architecture changes.
+## Current state
 
-## Current deployment-only estimate
+Arovaq is deployed. Factory: `0x8cd2DA9E45D18c47A803f065a3625AE68bF37B17`. Profile: `0x447047cC695ceb920D7BD2D7e19F569855Ba4D7C`. ChainMMO GameWorld: `0x3c6eF6a4272405A0C74cc137Ca7c681A1F58FB77`. The +1 challenge at `0xfd0bc253189f58fb441b135ed4b608bc3a435b84` has 0.001 MON escrow; character #65 is registered with baseline 1 / target 2.
 
-Read-only preflight at block `113164161` verified chain ID `143`, the accepted ChainMMO GameWorld, and the exact accepted factory initcode. `eth_estimateGas` returned `1,295,877`; this includes the constructor-created `ChainMMOProgressionProfile`. At the observed `102 gwei`, deployment is estimated at `132179454000000000 wei` (`0.132179454 MON`). A 50% gas allowance is `0.198269232 MON`. The deployer balance at block `113164062` was `41 MON`, leaving `40.867820546 MON` after the unbuffered estimate, or `40.801730768 MON` after the 50% allowance. No challenge reward or challenge transaction is included. Recheck balance, gas price and gas estimate immediately before any authorized deployment.
+## Safety hold
 
-The configured signer was verified locally to derive public address `0x6CeD8D6Bad8Dfd2e60BCEA116fE74548f959f1F2`. Its local key file is ignored by Git and untracked; the key value is not part of this repository or this report. No mainnet transaction was signed or broadcast. Deployment still requires separate explicit approval.
+A prior equip invocation used account nonce 8, but its transaction hash/receipt has not been reconciled. Do not sign or broadcast another Mainnet transaction until the nonce is conclusively resolved. The fork demo completed the equip, game progression to level 2, and Arovaq claim locally, using real forked contract state. It is not a Mainnet claim.
 
-Read-only preflight command:
+Confirmed gross wallet outflow is `0.460406886 MON` (includes the challenge escrow). The original 2 MON cap therefore has at least `1.539593114 MON` remaining before accounting for any unresolved nonce exposure. Latest observed wallet balance was `20.539593114 MON`; see `MAINNET_TX_LEDGER_NOTES.md` for the reconciliation caveat.
 
-```sh
-forge script script/MonadPreflight.s.sol:MonadPreflight --rpc-url https://rpc.monad.xyz
-```
+## Remaining steps
 
-Deployment command, to run only after explicit approval:
+- [ ] Reconcile signer nonce 8 against Monad transaction pool/blocks and determine its receipt/hash or establish it was never accepted.
+- [ ] If and only if the nonce is resolved and budget permits, inspect character #65's equipped item and current level directly onchain.
+- [ ] Estimate gas and worst-case cap before each authorized transaction.
+- [ ] Complete legitimate Mainnet gameplay to level 2 and claim the challenge only if the current deadline remains valid and the transaction fits the remaining 2 MON gross cap.
+- [ ] Otherwise present the live deployment/registration plus clearly labeled fork completion; do not claim Mainnet gameplay or payout.
+- [ ] Verify production frontend reads the deployed factory/challenge and does not send transactions during QA.
+- [ ] Record final evidence and transaction hashes.
 
-```sh
-forge script script/DeployArovaq.s.sol:DeployArovaq --rpc-url https://rpc.monad.xyz --broadcast
-```
-
-- [ ] Fund authorized deployer with the approved amount.
-- [ ] Rerun the Phase 2 Foundry contract suite.
-- [ ] Rerun Monad read-only preflight (RPC chain ID 143, ChainMMO bytecode and getters).
-- [ ] Re-estimate accepted deployment gas at current gas price.
-- [ ] Deploy the accepted Arovaq contracts using the guarded Foundry deployment script.
-- [ ] Record deployed Arovaq factory/profile addresses and deployment block/transaction hashes.
-- [ ] Verify deployed factory profile points to ChainMMO GameWorld `0x3c6eF6a4272405A0C74cc137Ca7c681A1F58FB77`.
-- [ ] Set `VITE_AROVAQ_ENV=MONAD_MAINNET`, `VITE_FACTORY_ADDRESS`, and `VITE_FACTORY_START_BLOCK` in deployment configuration.
-- [ ] Keep `VITE_ENABLE_MAINNET_WRITES` unset/false for read-only smoke tests.
-- [ ] Rebuild and run `npm run check:abis`, `npm test`, and `npm run build`.
-- [ ] Smoke-test factory event discovery and Arovaq → ChainMMO canonical reads.
-- [ ] Acquire/use a genuinely controlled ChainMMO character; do not impersonate another owner.
-- [ ] Obtain explicit approval for any challenge prize transfer before funding.
-- [ ] Only after authorization, set `VITE_ENABLE_MAINNET_WRITES=true` in the intended production build.
-- [ ] Run a small live +1 progression challenge only if the controlled character can naturally advance during the demo window.
-- [ ] Verify ownership, baseline, current progression, claim, and reward using canonical contract state.
-- [ ] Record explorer links and exact live acceptance evidence.
-- [ ] Final QA. Do not claim a live challenge flow if only read compatibility was demonstrated.
+No architecture changes or extra demo features are required.
