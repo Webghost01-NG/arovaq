@@ -1,2 +1,2 @@
 sequence,status,transaction_hash,purpose,chain_id,block,from,to,value_wei,gas_limit,max_fee_per_gas_wei,maximum_exposure_wei,gas_used,effective_gas_price_wei,actual_gas_cost_wei,cumulative_gross_outflow_wei
-1,PREPARED,,Deploy ArovaqFactory (constructor creates ChainMMOProgressionProfile),143,,0x6CeD8D6Bad8Dfd2e60BCEA116fE74548f959f1F2,,0,1943816,102000000000,198269232000000000,,,,
+1,CONFIRMED,0x5d3bfd3bd7b983bd5790a826020c472527469c14316becf0cd2c0a677819f502,Deploy ArovaqFactory (constructor creates ChainMMOProgressionProfile),143,113165735,0x6CeD8D6Bad8Dfd2e60BCEA116fE74548f959f1F2,CREATE,0,1943815,102000000000,198269130000000000,1943815,102000000000,198269130000000000,198269130000000000
