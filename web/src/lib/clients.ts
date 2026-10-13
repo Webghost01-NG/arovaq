@@ -4,6 +4,7 @@ import {
 } from 'viem';
 import { chain, config, MAINNET_PENDING } from '../config/environment';
 import { factoryAbi, challengeAbi, profileAbi, gameWorldAbi, localGameAbi } from '../generated/abis';
+import { fetchInBlockRanges } from './chunkedLogs';
 
 export type WalletState = { address: Address; provider: EIP1193Provider };
 export type Registration = {
@@ -60,10 +61,12 @@ export async function waitForConfirmation(hash: Hash) {
   return receipt;
 }
 export async function discoverChallenges(): Promise<Address[]> {
-  const logs = await publicClient.getContractEvents({
-    address: requireFactory(), abi: factoryAbi, eventName: 'ChallengeCreated',
-    fromBlock: config.factoryStartBlock, toBlock: 'latest',
-  });
+  const latest = await publicClient.getBlockNumber();
+  const logs = await fetchInBlockRanges(config.factoryStartBlock, latest, (fromBlock, toBlock) =>
+    publicClient.getContractEvents({
+      address: requireFactory(), abi: factoryAbi, eventName: 'ChallengeCreated', fromBlock, toBlock,
+    }),
+  );
   return logs.map((log) => log.args.challenge).filter((x): x is Address => Boolean(x)).reverse();
 }
 export async function getChallenge(address: Address): Promise<Challenge> {
