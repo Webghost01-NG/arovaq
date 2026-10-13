@@ -12,6 +12,7 @@
     "check:abis": "node scripts/sync-abis.mjs --check",
     "demo:local": "node scripts/local-demo.mjs",
     "demo:fork": "node scripts/fork-demo.mjs",
+    "demo:fork-live": "node scripts/fork-live-acceptance.mjs",
     "test:e2e": "node scripts/local-e2e.mjs"
   },
   "dependencies": {
