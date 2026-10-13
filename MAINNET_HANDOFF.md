@@ -1,12 +1,12 @@
 # Arovaq Mainnet Handoff
 
-Arovaq Mainnet deployment is pending MON funding for the authorized deployer. This checklist contains no architecture changes. Phase 4 has not broadcast Monad Mainnet writes.
+Arovaq Mainnet deployment is prepared but has **not** been authorized or broadcast. The signer is locally configured and verified, and the current balance is sufficient for the factory deployment and a small demo reserve. This checklist contains no architecture changes.
 
 ## Current deployment-only estimate
 
-At read/estimate block `113150278`, `eth_estimateGas` returned `1,295,877` for the exact accepted factory initcode. It includes the constructor-created profile. At the observed `102 gwei`, the estimate is `0.132179454 MON`; fund **0.20 MON** for a 50% gas margin. The deployer currently has `0 MON`. This excludes challenge rewards and all challenge transactions. Recheck gas price and gas estimate immediately before deployment.
+Read-only preflight at block `113164161` verified chain ID `143`, the accepted ChainMMO GameWorld, and the exact accepted factory initcode. `eth_estimateGas` returned `1,295,877`; this includes the constructor-created `ChainMMOProgressionProfile`. At the observed `102 gwei`, deployment is estimated at `132179454000000000 wei` (`0.132179454 MON`). A 50% gas allowance is `0.198269232 MON`. The deployer balance at block `113164062` was `41 MON`, leaving `40.867820546 MON` after the unbuffered estimate, or `40.801730768 MON` after the 50% allowance. No challenge reward or challenge transaction is included. Recheck balance, gas price and gas estimate immediately before any authorized deployment.
 
-The configured deployer public address is `0x6CeD8D6Bad8Dfd2e60BCEA116fE74548f959f1F2`. The deployment key is not present in this workspace environment. After funding and separate deployment approval, provide `AROVAQ_DEPLOY_KEY` through a secure shell environment; never commit or paste it into command history.
+The configured signer was verified locally to derive public address `0x6CeD8D6Bad8Dfd2e60BCEA116fE74548f959f1F2`. Its local key file is ignored by Git and untracked; the key value is not part of this repository or this report. No mainnet transaction was signed or broadcast. Deployment still requires separate explicit approval.
 
 Read-only preflight command:
 
