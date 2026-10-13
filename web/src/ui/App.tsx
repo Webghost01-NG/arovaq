@@ -3,7 +3,7 @@ import { formatEther, parseEther, type Address, type Hash } from 'viem';
 import { config, MAINNET_PENDING } from '../config/environment';
 import {
   assertNetwork, claimReward, connectWallet, createChallenge, demoProgress, discoverChallenges,
-  getChallenge, getCharacter, getRegistration, getTotalCharacters, publicClient, reclaimExpired,
+  getCanonicalTimestamp, getChallenge, getCharacter, getRegistration, getTotalCharacters, publicClient, reclaimExpired,
   registerCharacter, switchNetwork, waitForConfirmation, type Challenge, type Registration,
   type WalletState,
 } from '../lib/clients';
@@ -13,8 +13,9 @@ type Page = 'discover' | 'create' | 'detail';
 type Flash = { kind: 'success' | 'error' | 'info'; message: string } | null;
 
 function short(address?: string) { return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ''; }
-function remaining(deadline: bigint) {
-  const seconds = Number(deadline) - Math.floor(Date.now() / 1000);
+function remaining(deadline: bigint, now: bigint | null) {
+  if (now === null) return 'CHECKING CHAIN CLOCK';
+  const seconds = Number(deadline - now);
   if (seconds <= 0) return 'ENDED';
   const days = Math.floor(seconds / 86400), hours = Math.floor(seconds % 86400 / 3600);
   return days ? `${days}D ${hours}H LEFT` : `${hours}H ${Math.floor(seconds % 3600 / 60)}M LEFT`;
@@ -78,10 +79,30 @@ export default function App() {
   const [character, setCharacter] = useState<{ owner: Address; bestLevel: number; lastLevelUpEpoch: number } | null>(null);
   const [characterInput, setCharacterInput] = useState('');
   const [observedLevel, setObservedLevel] = useState<number | null>(null);
+  const [chainTimestamp, setChainTimestamp] = useState<bigint | null>(null);
   const [form, setForm] = useState({ delta: '3', reward: '1', slots: '10', days: '7' });
 
   const pending = config.mode === 'MONAD_MAINNET' && !config.factory;
   const mainnetReadOnly = config.mode === 'MONAD_MAINNET' && Boolean(config.factory) && !config.writable;
+  const chainNow = chainTimestamp;
+  const refreshChainClock = useCallback(async () => {
+    const timestamp = await getCanonicalTimestamp();
+    setChainTimestamp(timestamp);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const timestamp = await getCanonicalTimestamp();
+        if (active) {
+          setChainTimestamp(timestamp);
+        }
+      } catch { /* Time-dependent controls stay unavailable until canonical time is readable. */ }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 15_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
   const refreshList = useCallback(async () => {
     if (!config.factory) { setChallenges([]); setLoading(false); return; }
     setLoading(true);
@@ -94,6 +115,7 @@ export default function App() {
   const refreshSelected = useCallback(async (address: Address, player?: Address) => {
     const data = await getChallenge(address);
     setChallengeData(data);
+    void refreshChainClock().catch(() => {});
     if (player) {
       const reg = await getRegistration(address, player);
       setRegistration(reg.registered ? reg : null);
@@ -102,7 +124,7 @@ export default function App() {
         setObservedLevel(null);
       } else { setCharacter(null); setObservedLevel(null); }
     } else { setRegistration(null); setCharacter(null); }
-  }, []);
+  }, [refreshChainClock]);
   useEffect(() => {
     if (!selected) return;
     void refreshSelected(selected, wallet?.address).catch(e => setFlash({ kind: 'error', message: friendlyError(e) }));
@@ -140,7 +162,8 @@ export default function App() {
       const account = await ensureWallet();
       const delta = Number(form.delta), slots = Number(form.slots), reward = parseEther(form.reward), days = Number(form.days);
       if (!Number.isInteger(delta) || delta < 1 || delta > 0xffffffff || !Number.isInteger(slots) || slots < 1 || slots > 0xffffffff || reward <= 0n || days < 1) throw new Error('Enter a valid positive objective, reward, slot count and duration.');
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + days * 86400);
+      const now = await getCanonicalTimestamp();
+      const deadline = now + BigInt(days * 86400);
       await sendAction('Create challenge', () => createChallenge(account, { delta, rewardMon: form.reward, cap: slots, deadline }), async () => {
         await refreshList(); setPage('discover');
       });
@@ -184,6 +207,7 @@ export default function App() {
   async function copyAddress(value: string) { await navigator.clipboard?.writeText(value); setFlash({ kind: 'success', message: 'Address copied.' }); }
 
   const remainingSlots = challengeData ? challengeData.cap - challengeData.claimed : 0;
+  const challengeExpired = Boolean(challengeData && chainNow !== null && remaining(challengeData.deadline, chainNow) === 'ENDED');
   const progress = registration && character ? Math.min(100, Math.max(0, (character.bestLevel - registration.baseline) / Number(registration.target - BigInt(registration.baseline)) * 100)) : 0;
   const reached = Boolean(registration && character && BigInt(character.bestLevel) >= registration.target);
   const isCreator = Boolean(wallet && challengeData && wallet.address.toLowerCase() === challengeData.creator.toLowerCase());
@@ -223,7 +247,7 @@ export default function App() {
             <p>Communities create new ways to compete around games they do not control.</p>
             <div className="hero-actions">
               <button className="button-primary" onClick={() => document.getElementById('competition-board')?.scrollIntoView({ behavior: 'smooth' })}>EXPLORE COMPETITIONS <Arrow /></button>
-        <button className="button-quiet" onClick={() => setPage('create')}>OPEN CREATOR <Arrow diagonal /></button>
+              <button className="button-quiet" onClick={() => pending ? document.getElementById('chainmmo-live')?.scrollIntoView({ behavior: 'smooth' }) : setPage('create')}>{pending ? 'READ CHAINMMO STATE' : 'OPEN CREATOR'} <Arrow diagonal /></button>
             </div>
           </div>
         </div>
@@ -249,8 +273,8 @@ export default function App() {
         </div>
         <div className="event-headings" aria-hidden="true"><span>EVENT</span><span>OBJECTIVE</span><span>REWARD</span><span>CLAIMS LEFT</span><span>WINDOW</span><span /></div>
         {loading ? <div className="board-state"><span className="loading-rule" /><p>READING CANONICAL AROVAQ EVENTS…</p></div> : challenges.length ? <div className="event-list">
-          {challenges.map((address, index) => <ChallengeCard key={address} address={address} number={index + 1} onOpen={() => void chooseChallenge(address)} />)}
-        </div> : <div className="board-empty"><span className="empty-code">00</span><div><p className="section-code">NO ACTIVE EVENTS FOUND</p><h3>{pending ? 'THE FIRST COMPETITION IS WAITING.' : 'START A NEW CHALLENGE.'}</h3><p>{pending ? 'Arovaq Mainnet is not configured yet. The existing ChainMMO world is already readable above.' : 'Set a progression target, sponsor its rewards, and invite your community to play.'}</p><button className="button-quiet" onClick={() => setPage('create')}>CREATE A CHALLENGE <Arrow diagonal /></button></div><span className="empty-origin">BOARD / CHAINMMO</span></div>}
+          {challenges.map((address, index) => <ChallengeCard key={address} address={address} number={index + 1} now={chainNow} onOpen={() => void chooseChallenge(address)} />)}
+        </div> : <div className="board-empty"><span className="empty-code">00</span><div><p className="section-code">NO ACTIVE EVENTS FOUND</p><h3>{pending ? 'THE FIRST COMPETITION IS WAITING.' : 'START A NEW CHALLENGE.'}</h3><p>{pending ? 'Arovaq Mainnet is not configured yet. The existing ChainMMO world is already readable above.' : 'Set a progression target, sponsor its rewards, and invite your community to play.'}</p><button className="button-quiet" onClick={() => pending ? document.getElementById('chainmmo-live')?.scrollIntoView({ behavior: 'smooth' }) : setPage('create')}>{pending ? 'READ LIVE CHAINMMO STATE' : 'CREATE A CHALLENGE'} <Arrow diagonal /></button></div><span className="empty-origin">BOARD / CHAINMMO</span></div>}
       </section>
     </main>}
 
@@ -284,7 +308,7 @@ export default function App() {
       {!challengeData ? <div className="detail-loading"><span className="loading-rule" /><p>READING CANONICAL CHALLENGE STATE…</p></div> : <>
         <header className="detail-heading">
           <div className="detail-title"><p className="section-code">CHAINMMO / EVENT {String(challenges.findIndex(item => item.toLowerCase() === selected.toLowerCase()) + 1).padStart(3, '0')}</p><h1>PROGRESSION<br /><em>CHALLENGE.</em></h1><div className="detail-objective"><strong>+{challengeData.delta}</strong><span>BEST LEVELS<br />FROM YOUR BASELINE</span></div></div>
-          <aside className="event-window"><span>CLAIM WINDOW</span><strong>{remaining(challengeData.deadline)}</strong><small>FIRST VALID CLAIM<br />NOT FIRST ACHIEVEMENT</small></aside>
+          <aside className="event-window"><span>CLAIM WINDOW</span><strong>{remaining(challengeData.deadline, chainNow)}</strong><small>FIRST VALID CLAIM<br />NOT FIRST ACHIEVEMENT</small></aside>
         </header>
         <div className="detail-layout">
           <section className="participant-panel" aria-label="Participant progress">
@@ -300,23 +324,24 @@ export default function App() {
               <div className="participant-actions">
                 <button className="button-quiet" onClick={() => void checkProgress()} disabled={busy}>REFRESH CANONICAL STATE <span aria-hidden="true">↻</span></button>
                 {isLocal && !reached && <button className="button-quiet" onClick={() => void updateProgress()} disabled={busy}>DEMO: PROGRESS CHARACTER <Arrow /></button>}
-                {reached && !registration.claimed && remainingSlots > 0 && <button className="button-primary" onClick={() => void claim()} disabled={busy || mainnetReadOnly}>{busy ? 'VERIFYING…' : `VERIFY + CLAIM ${formatEther(challengeData.reward)} MON`} <Arrow /></button>}
+                {reached && !registration.claimed && remainingSlots > 0 && !challengeExpired && <button className="button-primary" onClick={() => void claim()} disabled={busy || mainnetReadOnly}>{busy ? 'VERIFYING…' : `VERIFY + CLAIM ${formatEther(challengeData.reward)} MON`} <Arrow /></button>}
               </div>
               {!reached && <div className="progress-message"><span className="status-square" /> <b>KEEP PLAYING</b><span>Current best level is below your target.</span></div>}
+              {reached && !registration.claimed && challengeExpired && <div className="progress-message" role="status"><span className="status-square" /> <b>CLAIM WINDOW CLOSED</b><span>The challenge ended before this reward was claimed.</span></div>}
               {reached && !registration.claimed && <div className="objective-reached" role="status"><div><span>CANONICAL STATE CHECK</span><h2>OBJECTIVE<br /><em>REACHED.</em></h2></div><strong>{character.bestLevel} / {registration.target.toString()}</strong></div>}
               {reached && registration.claimed && <div className="completion-receipt" role="status"><div className="receipt-heading"><Mark /><span>OBJECTIVE VERIFIED / CANONICAL STATE</span></div><div className="receipt-main"><div><small>CHARACTER #{registration.characterId.toString()}</small><strong>{registration.baseline}<span>→</span>{character.bestLevel}</strong><p>+{challengeData.delta} BEST LEVELS</p></div><div className="receipt-reward"><small>REWARD CLAIMED</small><strong>{formatEther(challengeData.reward)}<span>MON</span></strong></div></div><p className="receipt-caption">This claim was settled by the competition contract.</p></div>}
             </div> : <div className="character-binding">
               <div className="binding-intro"><span className="binding-step">BIND YOUR GAME ENTITY</span><h2>ENTER THE WORLD.</h2><p>Register a ChainMMO character you control. The contract captures its best level as your personal baseline.</p><div className="binding-check"><span>CONNECTED WALLET</span><b>{wallet ? short(wallet.address) : 'CONNECT WALLET TO CONTINUE'}</b></div></div>
               <div className="binding-form"><label htmlFor="character-id">CHAINMMO CHARACTER ID</label><div className="character-input"><span>#</span><input id="character-id" inputMode="numeric" value={characterInput} onChange={e => setCharacterInput(e.target.value)} placeholder="42" /></div>
                 {character && <div className={`owner-check ${wallet && character.owner.toLowerCase() === wallet.address.toLowerCase() ? 'owner-match' : 'owner-mismatch'}`} role="status"><span className="owner-symbol">{wallet && character.owner.toLowerCase() === wallet.address.toLowerCase() ? <Mark /> : '!'}</span><div><small>CANONICAL OWNER / BEST LEVEL {character.bestLevel}</small><b>{short(character.owner)}</b></div><span>{wallet && character.owner.toLowerCase() === wallet.address.toLowerCase() ? 'MATCHED' : 'MISMATCH'}</span></div>}
-                <div className="binding-actions"><button className="button-quiet" onClick={() => void inspectCharacter()} disabled={!characterInput}>CHECK OWNERSHIP <Arrow diagonal /></button><button className="button-primary button-wide" disabled={busy || pending || mainnetReadOnly || !wallet || !character || character.owner.toLowerCase() !== wallet.address.toLowerCase() || remainingSlots <= 0 || remaining(challengeData.deadline) === 'ENDED'} onClick={() => void register()}>{pending ? 'MAINNET DEPLOYMENT PENDING' : mainnetReadOnly ? 'MAINNET WRITES DISABLED' : !wallet ? 'CONNECT WALLET TO REGISTER' : remainingSlots <= 0 ? 'REWARDS EXHAUSTED' : busy ? 'AWAITING TRANSACTION…' : 'REGISTER CHARACTER'} <Arrow /></button></div>
+                <div className="binding-actions"><button className="button-quiet" onClick={() => void inspectCharacter()} disabled={!characterInput}>CHECK OWNERSHIP <Arrow diagonal /></button><button className="button-primary button-wide" disabled={busy || pending || mainnetReadOnly || chainNow === null || !wallet || !character || character.owner.toLowerCase() !== wallet.address.toLowerCase() || remainingSlots <= 0 || challengeExpired} onClick={() => void register()}>{pending ? 'MAINNET DEPLOYMENT PENDING' : mainnetReadOnly ? 'MAINNET WRITES DISABLED' : !wallet ? 'CONNECT WALLET TO REGISTER' : chainNow === null ? 'CHECKING CHAIN TIME' : challengeExpired ? 'CHALLENGE ENDED' : remainingSlots <= 0 ? 'REWARDS EXHAUSTED' : busy ? 'AWAITING TRANSACTION…' : 'REGISTER CHARACTER'} <Arrow /></button></div>
               </div>
             </div>}
           </section>
           <aside className="event-facts">
             <div className="event-reward"><span>SPONSORED REWARD / SUCCESS</span><strong>{formatEther(challengeData.reward)}<small>MON</small></strong><p>Claimed only after canonical progression is verified.</p><div className="claim-capacity"><span>REWARD SLOTS</span><b>{remainingSlots} / {challengeData.cap} AVAILABLE</b><div><i style={{ transform: `scaleX(${challengeData.cap ? challengeData.claimed / challengeData.cap : 0})` }} /></div></div></div>
             <dl className="event-facts-list"><div><dt>GAME STATE</dt><dd>CANONICAL / CHAINMMO</dd></div><div><dt>SETTLEMENT</dt><dd>FIRST VALID CLAIM</dd></div><div><dt>CREATOR</dt><dd>{short(challengeData.creator)} {wallet && isCreator ? '(YOU)' : ''}</dd></div><div><dt>PROFILE</dt><dd><button className="copy-address" onClick={() => void copyAddress(challengeData.profile)}>{short(challengeData.profile)} / COPY</button></dd></div></dl>
-            {isCreator && remaining(challengeData.deadline) === 'ENDED' && !challengeData.fundsReclaimed && <button className="button-quiet reclaim-action" onClick={() => void reclaim()} disabled={busy || mainnetReadOnly}>RECLAIM UNUSED FUNDING <Arrow diagonal /></button>}
+            {isCreator && chainNow !== null && remaining(challengeData.deadline, chainNow) === 'ENDED' && !challengeData.fundsReclaimed && <button className="button-quiet reclaim-action" onClick={() => void reclaim()} disabled={busy || mainnetReadOnly}>RECLAIM UNUSED FUNDING <Arrow diagonal /></button>}
             {isCreator && challengeData.fundsReclaimed && <div className="reclaimed-note">UNUSED FUNDING RECLAIMED</div>}
             <p className="trust-note">The game developer never built this competition. Arovaq reads canonical ChainMMO state directly.</p>
           </aside>
@@ -327,14 +352,14 @@ export default function App() {
   </div>;
 }
 
-function ChallengeCard({ address, number, onOpen }: { address: Address; number: number; onOpen: () => void }) {
+function ChallengeCard({ address, number, now, onOpen }: { address: Address; number: number; now: bigint | null; onOpen: () => void }) {
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => { void getChallenge(address).then(setChallenge).catch(() => setError(true)); }, [address]);
   if (error) return <div className="event-row broken-event"><span className="event-number">{String(number).padStart(3, '0')}</span><span>CHALLENGE DATA UNAVAILABLE</span><button className="button-quiet" onClick={onOpen}>INSPECT EVENT <Arrow diagonal /></button></div>;
   if (!challenge) return <div className="event-row event-loading" aria-label="Loading challenge"><span className="loading-rule" /></div>;
   return <button className="event-row" onClick={onOpen} aria-label={`EVENT / ${String(number).padStart(2, '0')} — ChainMMO progression challenge`}>
-    <span className="event-number">{String(number).padStart(3, '0')}</span><span className="event-objective"><small>CHAINMMO / PROGRESSION</small><strong>ADVANCE +{challenge.delta} BEST LEVELS</strong></span><span className="event-reward-cell"><small>REWARD</small><b>{formatEther(challenge.reward)} MON</b></span><span className="event-slots-cell"><small>CLAIMS LEFT</small><b>{challenge.cap - challenge.claimed} / {challenge.cap}</b></span><span className="event-window-cell"><small>WINDOW</small><b>{remaining(challenge.deadline)}</b></span><span className="event-open">OPEN EVENT <Arrow diagonal /></span>
+    <span className="event-number">{String(number).padStart(3, '0')}</span><span className="event-objective"><small>CHAINMMO / PROGRESSION</small><strong>ADVANCE +{challenge.delta} BEST LEVELS</strong></span><span className="event-reward-cell"><small>REWARD</small><b>{formatEther(challenge.reward)} MON</b></span><span className="event-slots-cell"><small>CLAIMS LEFT</small><b>{challenge.cap - challenge.claimed} / {challenge.cap}</b></span><span className="event-window-cell"><small>WINDOW</small><b>{remaining(challenge.deadline, now)}</b></span><span className="event-open">OPEN EVENT <Arrow diagonal /></span>
   </button>;
 }
 

@@ -16,6 +16,9 @@ export type Challenge = {
 };
 
 export const publicClient = createPublicClient({ chain, transport: http(config.rpcUrl) });
+export async function getCanonicalTimestamp(): Promise<bigint> {
+  return (await publicClient.getBlock()).timestamp;
+}
 export const requireFactory = (): Address => {
   if (!config.factory) throw new Error(config.mode === 'MONAD_MAINNET' ? MAINNET_PENDING : 'Local Arovaq deployment is not configured. Run npm run demo:local.');
   return config.factory;

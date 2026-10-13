@@ -1,10 +1,18 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, unlink } from 'node:fs/promises';
+import { mkdir, readFile, unlink } from 'node:fs/promises';
 import { chromium } from '@playwright/test';
+import { createPublicClient, http } from 'viem';
 
 const webDir = process.cwd();
 const screenshotDir = process.env.AROVAQ_E2E_SCREENSHOT_DIR;
+const rpcUrl = 'http://127.0.0.1:8545';
+async function rpc(method, params = []) {
+  const response = await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+  const result = await response.json();
+  if (result.error) throw new Error(`${method}: ${result.error.message}`);
+  return result.result;
+}
 if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
 async function capture(page, name) {
   if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/${name}.png`, fullPage: true });
@@ -115,6 +123,63 @@ try {
   await page.getByText('REWARD CLAIMED').waitFor();
   await capture(page, 'claim-success');
   await captureMobile(page, 'claim-success');
+
+  // Exercise expiry and sponsor reclaim against the deployed local Arovaq contracts.
+  await page.locator('.wallet-control.connected').click();
+  await page.evaluate(() => window.__switchArovaqDemoAccount(0));
+  await page.getByRole('button', { name: 'CONNECT WALLET', exact: true }).click();
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.getByLabel('Challenge duration').selectOption('1');
+  await page.getByRole('button', { name: /CREATE & FUND CHALLENGE/ }).click();
+  await page.getByText(/Create challenge: confirmed/).waitFor({ timeout: 20_000 });
+  const envText = await readFile(`${webDir}/.env.local`, 'utf8');
+  const factory = envText.match(/^VITE_FACTORY_ADDRESS=(0x[a-fA-F0-9]{40})$/m)?.[1];
+  if (!factory) throw new Error('Local E2E could not read the local factory configuration.');
+  const factoryArtifact = JSON.parse(await readFile(`${webDir}/../out/ArovaqFactory.sol/ArovaqFactory.json`, 'utf8'));
+  const challengeArtifact = JSON.parse(await readFile(`${webDir}/../out/ArovaqProgressionChallenge.sol/ArovaqProgressionChallenge.json`, 'utf8'));
+  const client = createPublicClient({ transport: http(rpcUrl) });
+  const events = await client.getContractEvents({
+    address: factory,
+    abi: factoryArtifact.abi,
+    eventName: 'ChallengeCreated',
+    fromBlock: 0n,
+    toBlock: 'latest',
+  });
+  const expiredChallenge = events.at(-1)?.args.challenge;
+  if (!expiredChallenge) throw new Error('Local E2E did not find the new challenge event.');
+  const deadline = await client.readContract({ address: expiredChallenge, abi: challengeArtifact.abi, functionName: 'deadline' });
+  await page.getByRole('button', { name: /EVENT \/ 01/ }).click();
+  await page.locator('.wallet-control.connected').click();
+  await page.evaluate(() => window.__switchArovaqDemoAccount(1));
+  await page.getByRole('button', { name: 'CONNECT WALLET', exact: true }).click();
+  await page.getByLabel('CHAINMMO CHARACTER ID').fill('42');
+  await page.getByRole('button', { name: /CHECK OWNERSHIP/ }).click();
+  await page.getByRole('button', { name: /REGISTER CHARACTER/ }).click();
+  await page.getByText(/Register character: confirmed/).waitFor({ timeout: 20_000 });
+  await page.getByRole('button', { name: /DEMO: PROGRESS CHARACTER/ }).click();
+  await page.getByText(/Demo progression: confirmed/).waitFor({ timeout: 20_000 });
+  await page.getByText(/OBJECTIVE\s*REACHED/).waitFor();
+  await rpc('anvil_setNextBlockTimestamp', [`0x${deadline.toString(16)}`]);
+  await rpc('evm_mine');
+  await page.goto('http://127.0.0.1:4178');
+  await page.evaluate(() => window.__switchArovaqDemoAccount(1));
+  await page.getByRole('button', { name: 'CONNECT WALLET', exact: true }).click();
+  await page.getByRole('button', { name: /EVENT \/ 01/ }).click();
+  await page.getByText('CLAIM WINDOW CLOSED').waitFor();
+  if (await page.getByRole('button', { name: /VERIFY \+ CLAIM/ }).count()) throw new Error('Expired challenge still offered a claim action.');
+  await page.locator('.wallet-control.connected').click();
+  await page.evaluate(() => window.__switchArovaqDemoAccount(0));
+  await page.getByRole('button', { name: 'CONNECT WALLET', exact: true }).click();
+  await page.getByRole('button', { name: /RECLAIM UNUSED FUNDING/ }).waitFor();
+  await capture(page, 'expired-reclaim-available');
+  await page.getByRole('button', { name: /RECLAIM UNUSED FUNDING/ }).click();
+  await page.getByText(/Reclaim unused rewards: confirmed/).waitFor({ timeout: 20_000 });
+  await page.getByText('UNUSED FUNDING RECLAIMED').waitFor();
+  const remainingFunding = await client.readContract({ address: expiredChallenge, abi: challengeArtifact.abi, functionName: 'remainingFunding' });
+  const fundsReclaimed = await client.readContract({ address: expiredChallenge, abi: challengeArtifact.abi, functionName: 'fundsReclaimed' });
+  if (remainingFunding !== 0n || !fundsReclaimed) throw new Error('Reclaim state did not reconcile on the local chain.');
+  await capture(page, 'expired-reclaim-success');
+
   await page.locator('.wallet-control.connected').click();
   await page.evaluate(() => { window.__forceWrongArovaqNetwork = true; });
   await page.getByRole('button', { name: 'CONNECT WALLET', exact: true }).click();
@@ -124,7 +189,7 @@ try {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   if (overflow) throw new Error('Mobile layout overflows the 390px viewport.');
   if (browserErrors.length) throw new Error(`Browser console errors: ${browserErrors.join(' | ')}`);
-  console.log('BROWSER E2E PASS: create/fund → owner check → register/baseline → canonical fixture progression → claim; 390px mobile viewport has no horizontal overflow.');
+  console.log('BROWSER E2E PASS: create/fund → owner check → register/baseline → canonical fixture progression → claim → expire → reclaim; wrong-network state and 390px mobile overflow checks passed. All Arovaq actions used local Anvil contracts.');
 } catch (error) {
   console.error(error instanceof Error ? error.stack : String(error));
   process.exitCode = 1;
