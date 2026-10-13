@@ -2,6 +2,24 @@
 
 Arovaq Mainnet deployment is pending MON funding for the authorized deployer. This checklist contains no architecture changes. Phase 4 has not broadcast Monad Mainnet writes.
 
+## Current deployment-only estimate
+
+At read/estimate block `113150278`, `eth_estimateGas` returned `1,295,877` for the exact accepted factory initcode. It includes the constructor-created profile. At the observed `102 gwei`, the estimate is `0.132179454 MON`; fund **0.20 MON** for a 50% gas margin. The deployer currently has `0 MON`. This excludes challenge rewards and all challenge transactions. Recheck gas price and gas estimate immediately before deployment.
+
+The configured deployer public address is `0x6CeD8D6Bad8Dfd2e60BCEA116fE74548f959f1F2`. The deployment key is not present in this workspace environment. After funding and separate deployment approval, provide `AROVAQ_DEPLOY_KEY` through a secure shell environment; never commit or paste it into command history.
+
+Read-only preflight command:
+
+```sh
+forge script script/MonadPreflight.s.sol:MonadPreflight --rpc-url https://rpc.monad.xyz
+```
+
+Deployment command, to run only after explicit approval:
+
+```sh
+forge script script/DeployArovaq.s.sol:DeployArovaq --rpc-url https://rpc.monad.xyz --broadcast
+```
+
 - [ ] Fund authorized deployer with the approved amount.
 - [ ] Rerun the Phase 2 Foundry contract suite.
 - [ ] Rerun Monad read-only preflight (RPC chain ID 143, ChainMMO bytecode and getters).

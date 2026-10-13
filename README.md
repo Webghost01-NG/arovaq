@@ -1,4 +1,33 @@
-# Arovaq Phase 1 — ChainMMO progression challenge
+# Arovaq
+
+> Permissionless competition for onchain worlds.
+
+**Live frontend:** [arovaq.vercel.app](https://arovaq.vercel.app/)
+
+**Deployment status:** Arovaq contracts are **not deployed** to Monad Mainnet. The production frontend is Mainnet read-only, the factory address is unset, and Mainnet writes are disabled. ChainMMO compatibility is verified through direct read-only RPC calls.
+
+## Judge-facing walkthrough
+
+1. Open the [live Arovaq frontend](https://arovaq.vercel.app/) and show the explicit Mainnet deployment-pending state.
+2. Read ChainMMO character #42 from the live GameWorld and explain that the game is independently deployed and has no Arovaq integration.
+3. For the full interaction path, run `cd web && npm run test:e2e`. The script labels its environment **LOCAL / DEMO** and exercises create/fund, owner rejection, registration, baseline capture, fixture progression, reward claim, expiry, and sponsor reclaim against locally deployed copies of the accepted Arovaq contracts. It is simulation evidence, not a Mainnet challenge.
+4. Show the fork test (`forge test --match-path test/ChainMMOFork.t.sol -vv`) as the real ChainMMO read compatibility proof; it does not impersonate an owner or send a Mainnet write.
+
+The hackathon portal currently presents a sign-in/registration screen. A final demo video is not included in this repository and must be recorded and uploaded by the project owner. Do not describe the local fixture flow as live ChainMMO gameplay or an Arovaq Mainnet deployment.
+
+## Technical evidence
+
+- Solidity contracts and adversarial, fuzz, invariant, scale, and fork tests: [`src/`](src/), [`test/`](test/).
+- Foundry-generated frontend ABI synchronization: `cd web && npm run sync:abis`; validation: `npm run check:abis`.
+- Local transaction-backed browser flow: `cd web && npm run test:e2e`.
+- Read-only ChainMMO compatibility: `MONAD_RPC_URL=https://rpc.monad.xyz forge test --match-path test/ChainMMOFork.t.sol -vv`.
+- Current Monad deployment estimate and no-write evidence: [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+### Contract verification
+
+No Arovaq Mainnet address exists yet, so no Arovaq explorer verification is claimed. After an authorized deployment, verify the factory from `src/ArovaqFactory.sol` using the exact compiler settings in [`foundry.toml`](foundry.toml) and the constructor argument used by [`DeployArovaq.s.sol`](script/DeployArovaq.s.sol). The factory constructor creates the profile; check the deployed factory's `profile()` and that profile's `gameWorld()` against the frozen ChainMMO address. Record deployed addresses, transaction hashes, block, and source-verification result in `DEPLOYMENT.md` before enabling any frontend write setting.
+
+The Phase 2 security report records the accepted contract boundary and limitations; [`PHASE2_REPORT.md`](PHASE2_REPORT.md). The Phase 4 report records the deployment-pending frontend acceptance; [`PHASE4_REPORT.md`](PHASE4_REPORT.md).
 
 ## What is Arovaq?
 

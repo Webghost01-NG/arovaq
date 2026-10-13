@@ -52,6 +52,34 @@ No challenge contract was created or funded. Deployment gas and transaction cost
 
 Use an explicitly designated Monad deployer with enough native MON for deployment gas, then rerun chain/address/code/getter checks, `forge fmt --check`, `forge build`, the full test suite, address/balance checks, and a fresh fee estimate **before signing**. This record does not authorize a funded challenge or material prize transfer.
 
+## Deadline-night read-only preflight and gas estimate
+
+Read directly from the public Monad RPC `https://rpc.monad.xyz` on 2026-10-13. No transaction was signed or broadcast.
+
+| Check | Result |
+|---|---|
+| Chain ID | `143` (`0x8f`) |
+| Read / estimate block | `113150278` |
+| ChainMMO GameWorld | `0x3c6eF6a4272405A0C74cc137Ca7c681A1F58FB77`; bytecode present |
+| `totalCharacters()` | `64` |
+| Character #42 owner | `0x9f2B43e65856741af08A7b6412747026EC371A0A` |
+| Character #42 best level | `1` |
+| Character #42 last-level-up epoch | `492020` |
+| Authorized deployer balance | `0 wei` at the same block |
+| `eth_gasPrice` snapshot | `102000000000 wei/gas` (`102 gwei`) |
+
+The exact deployment initcode was built from the accepted `out/ArovaqFactory.sol/ArovaqFactory.json` artifact with the frozen GameWorld constructor argument. `eth_estimateGas` returned **1,295,877 gas**. This is one transaction: the `ArovaqFactory` constructor creates its `ChainMMOProgressionProfile`; no separate profile deployment or configuration transaction is omitted.
+
+| Funding level | Gas allowance | Estimate at 102 gwei | Rounded amount to fund |
+|---|---:|---:|---:|
+| Bare estimate | 1,295,877 | `132179454000000000 wei` = `0.132179454 MON` | `0.132179454 MON` |
+| Recommended | 1,619,847 (25% margin) | `165224394000000000 wei` = `0.165224394 MON` | `0.17 MON` |
+| Comfortable Phase 3 reserve | 1,943,816 (50% margin) | `198269232000000000 wei` = `0.198269232 MON` | `0.20 MON` |
+
+The comfortable amount covers deployment and gas-price/estimate headroom. Post-deployment factory/profile verification and the ChainMMO compatibility checks are read-only. This excludes challenge prize funding, challenge creation, participant registration, claim transactions, any later fee movement, and future gas-price changes. Recheck gas price and estimate immediately before any authorized deployment.
+
+At this audit, the recorded deployer still had **0 MON**. `AROVAQ_DEPLOY_KEY` is not configured in this workspace environment; no key was read or printed. Both funding and secure signer configuration must be available before deployment can proceed.
+
 ## Known limits
 
 Arovaq verifies ownership at registration and settlement and checks current canonical best-level progression. It does not prove continuous ownership, who personally played the character, chronological first achievement, or arbitrary game metric safety. ChainMMO has not been modified.
