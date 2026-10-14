@@ -93,4 +93,36 @@ See [`MAINNET_TX_LEDGER.csv`](MAINNET_TX_LEDGER.csv) for all eight confirmed tra
 
 At block `113171516`, Monad RPC reported chain ID 143, non-empty code at the factory/profile/ChainMMO/challenge addresses, challenge registration `(characterId=65, baseline=1, target=2, registered=true, claimed=false)`, character owner equal to the authorized wallet, and best level 1. These are direct RPC observations; no hosted game API was used.
 
-The production frontend configuration is Mainnet and points to the verified factory/start block. Local `.env.example` keeps Mainnet writes disabled. Production enables writes because the accepted deployment is live; **no production browser transaction was used as QA**. The frontend and API remain subject to final production smoke verification.
+The production frontend is configured for Monad Mainnet and the verified factory/start block. The local `.env.example` keeps Mainnet writes disabled. Production has an explicit write-enable setting because the Arovaq deployment is live; **no production browser transaction was used as QA**. A later read-only browser smoke check confirmed that the live app discovers the challenge and displays its detail page, sponsor/profile, reward, remaining slot, and first-valid-claim semantics.
+
+## Post-submission independent RPC verification
+
+Read-only verification was repeated directly against `https://rpc.monad.xyz` at block `113188338` (block timestamp `1791939042`, 2026-10-14 00:50:42 UTC). No transaction was sent.
+
+| Check | Result at block `113188338` |
+|---|---|
+| Chain ID | `143` (`0x8f`) |
+| Factory code | Present, 4,218 bytes |
+| Factory `profile()` | `0x447047cC695ceb920D7BD2D7e19F569855Ba4D7C` |
+| Profile code | Present, 1,295 bytes |
+| Profile `gameWorld()` | `0x3c6eF6a4272405A0C74cc137Ca7c681A1F58FB77` |
+| Profile semantics | Monotonic `true`; transferable `false`; canonical ordering `false` |
+| Challenge code | Present, 3,034 bytes |
+| Challenge creator/profile | Authorized wallet / listed ChainMMO profile |
+| Challenge objective | `+1` best level; `0.001 MON`; one claim |
+| Challenge funding | Total and remaining `0.001 MON`; contract balance `0.001 MON` |
+| Challenge settlement | 0 successful claims; funds not reclaimed |
+| Challenge deadline | Timestamp `1792019112` (2026-10-14 23:05:12 UTC) |
+| Character #65 registration | Participant is registered; character 65; baseline 1; target 2; unclaimed |
+| Character #65 current state | Owner is the authorized wallet; best level 1; last-level-up epoch 497759 |
+| GameWorld total characters | 65 |
+
+The deployment, character creation, free lootbox claim, challenge creation, registration, and lootbox commit/reveal transaction hashes in `MAINNET_TX_LEDGER.csv` were independently fetched with receipts. All eight listed receipts have success status. The deployment receipt used 1,943,815 gas; the challenge creation transaction transferred exactly 0.001 MON; registration emitted one log.
+
+### Nonce 8 safety hold
+
+The Foundry broadcast artifact at `broadcast/LiveDemo.s.sol/143/run-1791933220125.json` describes an intended `equipItem(65, 6488)` call at nonce 8 (gas limit 192,033, value zero), but its recorded hash is null and it has no receipt. The account nonce advanced from 8 to 9. The first observed nonce-9 block, `113168947`, did not include a transaction from the wallet in the returned full transaction list. The current account nonce remains 9, and ChainMMO's slot-2 equipment getter returns 0 for character #65. These observations do not identify what consumed nonce 8 or prove the intended call's transaction status. Treat it as unresolved; do not retry or send another Mainnet write until a reliable transaction/receipt source reconciles it.
+
+### Mainnet versus fork evidence
+
+At the verification block, the registered character was still level 1 against target 2. The reward remained funded and unclaimed. `cd web && npm run demo:fork-live` later ran local Anvil fork transactions that equipped item #6488, completed a dungeon to level 2, and claimed the forked challenge. Those local transaction hashes and effects are not Mainnet transactions and do not count as a Mainnet payout.
