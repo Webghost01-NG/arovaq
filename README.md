@@ -1,208 +1,134 @@
 # Arovaq
 
-> Permissionless competition for onchain worlds.
+> **Permissionless competition for onchain worlds.**
 
-**Live frontend:** [arovaq.vercel.app](https://arovaq.vercel.app/)
+Arovaq lets communities attach sponsor-funded progression challenges to an independently deployed onchain game. Players keep using the original game; Arovaq reads canonical game state and settles eligible rewards through isolated challenge contracts.
 
-**Deployment status:** Arovaq is deployed to Monad Mainnet. The factory, constructor-created ChainMMO profile, one sponsor-funded +1 challenge, and character #65 registration are confirmed onchain. Character #65 remains at best level 1 against target 2, so the live reward has not been claimed. The production frontend is configured for the verified Mainnet factory; the end-to-end Mainnet progression/claim is incomplete.
+- **Live app:** [arovaq.vercel.app](https://arovaq.vercel.app/)
+- **Network:** Monad Mainnet · chain ID `143`
+- **Hackathon:** Monad Metropolis 2026 · Social, Attention & Culture
 
-## Judge-facing walkthrough
+## Current deployment status
 
-1. Open the [live Arovaq frontend](https://arovaq.vercel.app/) and show the configured Mainnet challenge board.
-2. Open challenge `0xfd0bc253189f58fb441b135ed4b608bc3a435b84`; show its actual character #65 registration, baseline 1, target 2, and 0.001 MON reward.
-3. Read character #65 directly from ChainMMO and explain the game is independently deployed. Its current Mainnet best level remains 1; do not claim a Mainnet reward was paid.
-4. For a deterministic end-to-end fallback, run `cd web && npm run demo:fork-live`. It forks real ChainMMO/Arovaq state and plays the actual game calls locally on Anvil. Every write is labeled **FORK / SIMULATION**, not Monad Mainnet activity.
-5. `cd web && npm run test:e2e` covers local create/fund, owner rejection, registration/baseline, fixture progression/claim, expiry/reclaim, wrong network, and 390px mobile behavior.
+Arovaq is deployed to Monad Mainnet. The factory, its constructor-created ChainMMO profile, the funded challenge, and character #65 registration were independently read from Monad RPC at block `113188338`.
 
-The hackathon portal currently presents a sign-in/registration screen. A final demo video is not included in this repository and must be recorded and uploaded by the project owner. Do not describe fork or local fixture transactions as Mainnet gameplay or an Arovaq Mainnet claim.
+| Component | Address | Evidence |
+|---|---|---|
+| ArovaqFactory | `0x8cd2DA9E45D18c47A803f065a3625AE68bF37B17` | Deployment tx `0x5d3bfd3bd7b983bd5790a826020c472527469c14316becf0cd2c0a677819f502`, block `113165735` |
+| ChainMMOProgressionProfile | `0x447047cC695ceb920D7BD2D7e19F569855Ba4D7C` | Created by the factory constructor in the same transaction; `gameWorld()` matches ChainMMO |
+| ChainMMO GameWorld | `0x3c6eF6a4272405A0C74cc137Ca7c681A1F58FB77` | Existing independent Monad deployment |
+| +1 progression challenge | `0xfd0bc253189f58fb441b135ed4b608bc3a435b84` | Creation tx `0x117f7ceb411f8b3bf26d3ee6e37eeae285ba35fb83c339bc97c4c95131f79562`, block `113167487` |
 
-## Technical evidence
+The challenge has `0.001 MON` funded for one successful claim. Character #65 is registered to the deployer wallet with baseline `1` and target `2` (registration tx `0xbd9a7ca1252e3bf60038f6b47acaaeb36a9f41e4accbdefec4a071e99565922a`, block `113167682`). At the latest recorded verification, the character's canonical best level is still `1`; the reward remains unclaimed and the challenge has zero successful claims. **A Mainnet progression and payout have not been completed.**
 
-- Solidity contracts and adversarial, fuzz, invariant, scale, and fork tests: [`src/`](src/), [`test/`](test/).
-- Foundry-generated frontend ABI synchronization: `cd web && npm run sync:abis`; validation: `npm run check:abis`.
-- Local transaction-backed browser flow: `cd web && npm run test:e2e`.
-- Read-only ChainMMO compatibility: `MONAD_RPC_URL=https://rpc.monad.xyz forge test --match-path test/ChainMMOFork.t.sol -vv`.
-- Monad deployment and live transaction evidence: [`DEPLOYMENT.md`](DEPLOYMENT.md), [`MAINNET_TX_LEDGER.csv`](MAINNET_TX_LEDGER.csv).
+One attempted equipment call at account nonce 8 remains unresolved: the local broadcast record has no transaction hash or receipt, while the account nonce advanced. The character's equipment slot remains empty. Further Mainnet writes are on hold until this discrepancy is reconciled. The complete gameplay and reward-claim path was demonstrated on a local Anvil fork only. Fork activity is simulation, not Mainnet execution. See [deployment and transaction evidence](DEPLOYMENT.md) and the [transaction ledger](MAINNET_TX_LEDGER.csv).
 
-### Contract verification
+## The problem
 
-The factory and profile are deployed at the addresses in [`DEPLOYMENT.md`](DEPLOYMENT.md). Explorer source verification has not been completed; live RPC bytecode and constructor configuration checks passed. The factory constructor creates the profile; its `gameWorld()` read equals the frozen ChainMMO address. The frontend uses compiled accepted ABIs and public environment-specific addresses.
+Game communities often cannot create a new competition around a live game without asking its developer to add hooks, adopt an SDK, or let an operator decide the result. Arovaq tests whether a community can define a supported challenge around a foreign game's public canonical state, with no integration in the game itself.
 
-The Phase 2 security report records the accepted contract boundary and limitations; [`PHASE2_REPORT.md`](PHASE2_REPORT.md). The Phase 4 report records frontend acceptance; [`PHASE4_REPORT.md`](PHASE4_REPORT.md).
+## How the ChainMMO challenge works
 
-## What is Arovaq?
+1. A sponsor creates a challenge with an objective, deadline, reward per completion, and claim cap. The sponsor funds exactly `reward × claim cap`.
+2. Before the deadline, a player registers a ChainMMO character they own. The challenge reads ownership and `characterBestLevel` and atomically stores the participant's baseline and derived target.
+3. The player continues playing ChainMMO directly. ChainMMO never imports, calls, or knows about Arovaq.
+4. Before the deadline, the participant claims. Arovaq rechecks character ownership and canonical best level, then pays the configured reward.
+5. After expiry, the creator may reclaim only unused reward funding.
 
-Arovaq is a zero-integration competition layer for fully onchain games. The Phase 1 proof is a sponsor-funded ChainMMO progression challenge: a character owner registers, Arovaq captures the current canonical best level as a baseline, and the participant can claim a fixed MON reward after increasing that level by the configured delta.
-
-> The world belongs to the game. The competition belongs to everyone.
-
-## Problem
-
-Communities cannot safely attach a competition to a game if the game must add callbacks, trust an oracle, or let an operator select winners.
-
-## Solution
-
-An isolated Arovaq challenge reads ChainMMO ownership and best-level state directly. It stores immutable rules and sponsor funding, binds one character to one participant, and pays only a registered owner whose canonical best level meets their stored baseline-relative target.
-
-## Why zero-integration matters
-
-**Arovaq does not require the target game to import, call, or integrate Arovaq.** Arovaq reads the deployed GameWorld's public getters using `staticcall`.
-
-## How it works
-
-1. A sponsor creates a challenge and funds `rewardPerSuccess × maxSuccessfulClaims` MON.
-2. A character owner registers before the deadline; ownership and best level are read from GameWorld in the same transaction that stores the baseline and target.
-3. The player plays ChainMMO normally.
-4. The participant claims before the deadline. Arovaq rechecks character ownership and current best level, then pays the fixed reward using O(1) accounting.
-5. After the deadline, the creator can reclaim only the unused funded rewards.
-
-Claims are **first valid claims**, not first achievements. The contract does not claim to establish chronological achievement order.
-
-## ChainMMO integration
-
-- Chain: Monad Mainnet, chain ID `143`.
-- GameWorld: `0x3c6eF6a4272405A0C74cc137Ca7c681A1F58FB77`.
-- Reads: `totalCharacters()`, `ownerOfCharacter(uint256)`, `characterBestLevel(uint256)`, `characterLastLevelUpEpoch(uint256)`.
-- A live read-only fork test checks the real deployed GameWorld. No ChainMMO transaction or modification is used.
-
-## Competition-safe observables
-
-This profile supports ChainMMO `characterBestLevel`, treated as monotonic progression attached to a character. The profile reports `hasCanonicalOrdering() == false`; Race mode is unavailable. Current stats and inventory are not supported as progression; transferable balances and possession-only conditions are explicitly out of scope.
-
-## Challenge vs Race
-
-- **Challenge:** proves a registered owner currently satisfies their baseline-relative target before the claim deadline. Supported.
-- **Race:** would prove who achieved the target first. Disabled because the available getters do not establish sufficient canonical total ordering. `characterLastLevelUpEpoch` is exposed and checked by the read integration test, but is not treated as unique ordering evidence.
+For example, registration at level 17 with a `+3` objective stores baseline 17 and target 20. A current canonical level of at least 20 satisfies the condition. This is a **challenge**, not a chronological race: settlement is first valid claim, not first achievement. The current getters do not prove total ordering, so Race mode is unavailable.
 
 ## Architecture
 
-- `ArovaqFactory` creates separately funded challenge contracts and one immutable ChainMMO profile.
-- `ChainMMOProgressionProfile` validates exact ABI return lengths, bounds read gas, and uses `staticcall` for ownership and progression reads.
-- `ArovaqProgressionChallenge` stores participant-time baseline/target, immutable objective/economics/deadline, and pull-style claims/reclaim.
-- Each challenge holds only its own funding; no participant loop is used.
+```text
+Player wallet ──registers──> isolated Arovaq challenge
+                                  │
+                                  ├── static read: ownerOfCharacter(id)
+                                  └── static read: characterBestLevel(id)
+                                                 │
+                                          ChainMMO GameWorld
 
-## Trust model
+Canonical owner + stored baseline-relative target ──claim──> fixed reward
+```
 
-ChainMMO GameWorld and Monad canonical state determine identity and best level. Participants trust the deployed Arovaq factory/profile/challenge bytecode and the configured GameWorld address. There is no backend, indexer, creator approval, or admin winner function. The creator chooses the objective and deadline before participants join but cannot change them or select winners afterward.
+- **ArovaqFactory** creates the immutable ChainMMO profile and independently funded challenge contracts.
+- **ChainMMOProgressionProfile** performs bounded-gas, exact-return-length `staticcall` reads against the configured GameWorld.
+- **ArovaqProgressionChallenge** captures registration-time baseline/target, checks them at claim, isolates sponsor funds, and supports O(1) registration, claim, and expiry/reclaim operations.
+- The frontend uses ABIs generated from the compiled Foundry artifacts. Contract addresses are environment configuration, not UI assumptions.
 
-The profile is a **trusted semantic configuration boundary**. Its `staticcall` proves what the configured contract returned during a transaction. ABI checks cannot establish that an arbitrary contract represents legitimate gameplay or that its getter is monotonic, non-transferable, or resistant to manipulation. A malicious target can report fabricated progression and make its own challenge pay; it cannot thereby change another challenge's accounting. The canonical Arovaq deployment must pin the intended ChainMMO GameWorld address. ChainMMO still needs no Arovaq integration.
+The profile is a trusted semantic configuration boundary, not an oracle. It can establish what the configured contract returned; ABI shape alone cannot prove that an arbitrary game's getter is honest, monotonic, non-transferable, or meaningful as progression. The supported ChainMMO profile is pinned to the GameWorld above.
 
-Ownership is checked at registration and claim. If a foreign game permits character transfer, these checks do not prove continuous custody or that the registered wallet personally performed each gameplay action. The verified condition is progression of the bound character while it is owned by the participant at settlement.
+## Repository layout
 
-## Why Monad
+```text
+src/                  Solidity factory, challenge, interfaces, profile, hostile fixtures
+test/                 unit, adversarial, fuzz, invariant, scale, and fork-read tests
+script/               guarded deploy, preflight, and live-demo scripts
+web/src/              React/TypeScript app, clients, configuration, generated ABIs
+web/scripts/           ABI sync, local demo, fork demos, browser E2E
+DEPLOYMENT.md          deployment and live RPC evidence
+MAINNET_TX_LEDGER.csv  confirmed Mainnet transaction receipts and gross outflow
+HACKATHON.md           submitted project facts and judge walkthrough
+ROADMAP.md             prioritized post-submission work
+```
 
-The primary foreign-game proof target is already deployed on Monad, so the integration reads its canonical state on the same network. This spike makes no claim that Arovaq requires Monad-specific execution features.
+## Run locally
 
-## Deployment addresses
-
-- ChainMMO GameWorld: `0x3c6eF6a4272405A0C74cc137Ca7c681A1F58FB77` (Monad Mainnet).
-- Arovaq: no contracts deployed. Local test deployments only.
-
-## Running locally
-
-Install Foundry and provide a public read-only Monad RPC through `MONAD_RPC_URL`. `.env` is ignored by Git; `.env.example` contains no endpoint or credentials.
+Requirements: Foundry, Node.js 22+, npm, and Chrome/Chromium for browser E2E. No root npm package is used; the frontend package lives under `web/`.
 
 ```sh
 forge fmt --check
 forge build
 forge test -vvv
-forge test --gas-report
-```
 
-The fork test uses `MONAD_RPC_URL`; the verified public Monad endpoint used for this spike was `https://rpc.monad.xyz`.
-
-## Testing
-
-- Unit/adversarial fixtures: `test/ArovaqPhase1.t.sol`.
-- State invariants: `test/ArovaqInvariants.t.sol`.
-- Real ChainMMO fork integration: `test/ChainMMOFork.t.sol`.
-- Mocks are used only for local adversarial/state-transition tests, not as evidence for the real-chain gate.
-
-## Security assumptions
-
-- The configured GameWorld address is the intended canonical contract on the target chain.
-- ChainMMO best-level monotonicity follows the frozen inspected implementation claim; this spike directly verifies the live getters, but does not independently audit all progression code.
-- Ownership may change. It is checked at registration and again at claim; the registered character cannot be bound to another participant in that challenge.
-- Contract timestamps use the chain clock and have normal block-producer timestamp limitations.
-- A failed payout reverts claim effects; a participant can select a different recipient.
-- The sponsor can select a recipient for expired-fund reclaim, so a sponsor contract that rejects native transfers can still recover unused funding.
-- Registration rejects a baseline and delta whose target exceeds the `uint32` range returned by `characterBestLevel`.
-
-## Known limitations
-
-- A real ChainMMO character was created, a live +1 challenge was funded, and character #65 was registered with canonical baseline 1 / target 2. Mainnet progression and reward claim remain unproven.
-- The fork acceptance runner impersonates the controlled wallet only inside local Anvil; its simulated game and claim transactions are not Mainnet writes.
-- First-to-claim is not first-to-achieve. A qualifying participant must claim before the deadline.
-- No Race mode, token rewards, entry fees, or transferable-balance competitions.
-- Forced native transfers can make the contract balance exceed its internal reward allocation. They do not increase claim or reclaim entitlements; unsolicited excess is not recoverable through the Phase 2 interface.
-- Foundry fuzz and invariant suites are local EVM checks; they do not substitute for external security review.
-
-## Demo flow
-
-Phase 1 demonstrates (1) direct read of the deployed ChainMMO GameWorld, (2) local registration with an owned fixture character, (3) canonical baseline and target capture, (4) progression and reward claim, and (5) expired unused-fund reclaim. A live user-owned character/reward demo requires later explicit deployment approval.
-
-**Arovaq v1 deliberately relies on canonical current state and participant-time baselines. It does not pretend arbitrary historical game state is available.**
-
-**A challenge proves objective satisfaction. It does not claim chronological first-achievement unless the target game exposes sufficient canonical ordering evidence.**
-
-## Phase 4 frontend
-
-The React/TypeScript frontend lives in `web/`. It uses viem for typed reads and writes; all Arovaq and ChainMMO ABIs in `web/src/generated/abis.ts` are synchronized from the compiled Foundry artifacts. The sync script validates required functions and events before writing or checking generated output.
-
-The Vercel project uses `web/` as its project root, builds with the frontend package scripts, and tracks `main` for production. Production Monad Mainnet configuration includes the deployed factory and start block, with writes enabled. `.env.example` defaults to read-only for local safety.
-
-> **The frontend uses ABIs generated from the accepted Solidity contracts. Deployment addresses are environment-specific configuration.**
-
-Install and validate:
-
-```sh
-forge build
 cd web
-npm install
-npm run sync:abis
+npm ci
 npm run check:abis
 npm test
+npm run typecheck
 npm run build
-```
-
-## Environment modes
-
-`VITE_AROVAQ_ENV` selects `LOCAL`, `FORK`, or `MONAD_MAINNET`.
-
-- `LOCAL` only accepts loopback RPC on chain ID `31337`. `npm run demo:local` starts Anvil, deploys the accepted factory and a clearly labeled test game fixture, seeds local character #42 at level 17, and writes ignored local addresses to `.env.local`. Start the frontend in another terminal with `npm run dev`.
-- `FORK` only accepts loopback RPC on chain ID `31338`. `npm run demo:fork` deploys Arovaq locally against the real ChainMMO GameWorld and prints canonical reads. `npm run demo:fork-live` uses a separate Anvil fork to exercise the existing deployed Arovaq challenge and real ChainMMO game calls locally. Fork writes are simulations.
-- `MONAD_MAINNET` uses Monad chain ID `143`, the deployed Arovaq factory from public environment configuration, and the separately deployed ChainMMO GameWorld. Missing factory configuration fails closed; local addresses are never substituted. Mainnet writes require `VITE_ENABLE_MAINNET_WRITES=true` in the production build configuration.
-
-LOCAL and FORK reject non-loopback RPC URLs. There is no fallback from a missing Mainnet Arovaq address to a local address. The application reads the real ChainMMO contract in Mainnet mode; the Arovaq factory is now configured at its verified deployment address.
-
-## Local end-to-end
-
-With Foundry, Node 22+, npm, and Chrome/Chromium available:
-
-```sh
-cd web
 npm run test:e2e
 ```
 
-This starts a fresh Anvil chain and Vite server, deploys the compiled Arovaq factory and mock fixture, then uses a local-only injected wallet provider to perform: create and fund → reject another wallet's character → register character #42 → capture baseline 17 / target 20 → progress the fixture → claim the reward. It does not use mainnet writes, mainnet impersonation, or external game mutation. Set `CHROME_PATH` if Chrome is installed outside the default path.
+For the read-only live ChainMMO fork test, provide a public read-only RPC if the default is unavailable:
 
-## ChainMMO integration
+```sh
+MONAD_RPC_URL=https://rpc.monad.xyz forge test --match-path test/ChainMMOFork.t.sol -vvv
+```
 
-ChainMMO remains an independently deployed foreign game at `0x3c6eF6a4272405A0C74cc137Ca7c681A1F58FB77`. The frontend reads `totalCharacters`, `ownerOfCharacter`, `characterBestLevel`, and `characterLastLevelUpEpoch` directly through RPC. No ChainMMO transaction or modification occurs. Local fixture state is only for repeatable development and tests; it is never described as the live integration.
+The local browser E2E starts Anvil and Vite, then exercises challenge creation/funding, owner rejection, registration/baseline, fixture progression, claim, expiry/reclaim, wrong-network handling, and a 390px layout check. It is local test state, not a live-game result.
 
-## Challenge semantics
+### Fork demos
 
-A participant registers a character they control. The accepted contract captures that character's canonical best-level baseline and derives `target = baseline + delta`. At claim time it checks ownership and current best level again. Claims are first-valid-claim while the challenge is open; they do not prove chronological first achievement. Reward funding is sponsor-funded with no participant entry fee. Expired unused funding can be reclaimed by the creator under the immutable contract rules.
+`cd web && npm run demo:fork` deploys Arovaq locally against real forked ChainMMO reads. `cd web && npm run demo:fork-live` forks the existing Mainnet Arovaq and ChainMMO state and performs simulated local equipment, dungeon, progression, and reward-claim calls. The runner uses a local Anvil impersonation and local balance; it does not load a private key or broadcast to Monad. Label its output **FORK / SIMULATION — NOT MAINNET** in any recording.
 
-## Mainnet deployment status
+## Configuration and secrets
 
-**Arovaq Mainnet is deployed.** The factory is `0x8cd2DA9E45D18c47A803f065a3625AE68bF37B17`; the profile is `0x447047cC695ceb920D7BD2D7e19F569855Ba4D7C`. Challenge `0xfd0bc253189f58fb441b135ed4b608bc3a435b84` is funded with 0.001 MON; character #65 is registered at baseline 1 / target 2. The latest Mainnet level is 1 and no Mainnet claim has occurred. See [`DEPLOYMENT.md`](DEPLOYMENT.md) for transaction evidence and the remaining live-gameplay limitation.
+`web/.env.example` documents the frontend's public configuration. `VITE_AROVAQ_ENV` selects `LOCAL`, `FORK`, or `MONAD_MAINNET`; LOCAL and FORK require loopback RPC and their respective chain IDs. Monad Mainnet uses chain ID 143 and the ChainMMO GameWorld address. The production factory and start block are public deployment configuration. The example keeps Mainnet writes disabled; the production build's write setting must be treated as security-sensitive public configuration and reviewed before use.
+
+For Foundry scripts, signing keys belong only in an ignored local environment file or secure process environment. Never add keys, mnemonics, authenticated RPC URLs, or wallet files to source control. `.env`, `.env.*`, and local web environment files are ignored; checked-in `.env.example` files are templates.
+
+## Security and trust assumptions
+
+- Monad canonical state and the configured ChainMMO GameWorld determine the observed owner and best level.
+- The challenge contract—not the UI, creator, backend, or indexer—checks eligibility and settlement.
+- Ownership is checked at registration and claim. This does not prove continuous ownership or who personally performed every game action.
+- The system does not prove chronological first achievement. A valid claimant must claim before the deadline and before the reward cap is exhausted.
+- The profile does not independently audit arbitrary game semantics. A malicious target can lie about its own state.
+- Contract timestamps follow block timestamps and their normal validator-level limitations.
+- The Foundry fuzz/invariant and fork-read tests are engineering evidence, not a third-party audit or formal verification.
+- Mainnet transaction history contains an unresolved nonce-8 equipment invocation. No replacement or retry should be sent until reconciled.
 
 ## Known limitations
 
-- The live demo has not yet completed actual Mainnet gameplay progression and reward claim.
-- The local gameplay fixture is permissionless by design and is not a real game or integration.
-- Fork-mode Arovaq writes are local simulations. A fork identity must not be represented as a live participant transaction.
-- The profile is a trusted semantic configuration boundary: generic ABI reads cannot independently prove that arbitrary game state reflects legitimate or non-transferable gameplay.
-- The UI displays first-valid-claim semantics. It does not offer Race mode.
-- Monad Mainnet writes require both a deployed factory address and the explicit `VITE_ENABLE_MAINNET_WRITES=true` build flag.
+- Character #65 is level 1 against target 2; the Mainnet reward is unclaimed.
+- The full gameplay-and-claim demonstration is local fork simulation only.
+- Available ChainMMO getters do not provide sufficient canonical total ordering for a first-achievement race.
+- The semantic profile is game-specific configuration; broad compatibility with arbitrary games is not claimed.
+- No independent security audit has been completed.
+- The repository currently has no `LICENSE` file. No open-source license is granted by this repository as checked in.
+
+## Hackathon and next steps
+
+Arovaq was submitted to Monad Metropolis 2026 in the Social, Attention & Culture track. See [HACKATHON.md](HACKATHON.md) for the concise project record. Pitch and demo videos were recorded and uploaded by the project owner; their URLs are not maintained in this repository.
+
+See [ROADMAP.md](ROADMAP.md) for the post-submission priority list. The first step is transaction-history reconciliation; until then, no further Mainnet writes are safe.
