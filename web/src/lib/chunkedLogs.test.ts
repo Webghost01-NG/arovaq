@@ -29,4 +29,34 @@ describe('fetchInBlockRanges', () => {
     expect(ranges[0]).toBe('0-7');
     expect(ranges).toContain('0-3');
   });
+
+  it('scans long histories in bounded concurrent batches and preserves order', async () => {
+    const ranges: string[] = [];
+    let active = 0;
+    let peak = 0;
+    const result = await fetchInBlockRanges(0n, 9n, async (from, to) => {
+      ranges.push(`${from}-${to}`);
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise(resolve => setTimeout(resolve, 1));
+      active -= 1;
+      const blocks: bigint[] = [];
+      for (let block = from; block <= to; block += 1n) blocks.push(block);
+      return blocks;
+    }, 2n);
+
+    expect(result).toEqual([0n, 1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n]);
+    expect(ranges).toHaveLength(5);
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(8);
+  });
+
+  it('returns immediately for an empty block range', async () => {
+    const fetchRange = async () => { throw new Error('should not be called'); };
+    await expect(fetchInBlockRanges(11n, 10n, fetchRange)).resolves.toEqual([]);
+  });
+
+  it('rejects a non-positive chunk size', async () => {
+    await expect(fetchInBlockRanges(0n, 10n, async () => [], 0n)).rejects.toThrow('Maximum block range must be positive.');
+  });
 });
