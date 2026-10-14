@@ -1,5 +1,6 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { decodeEventLog, formatEther, parseAbiItem } from 'viem';
 
 // This runner uses a local Anvil fork and an impersonated account on that fork.
 // It never sends a transaction to Monad Mainnet and never loads a private key.
@@ -11,13 +12,19 @@ const participant = process.env.AROVAQ_FORK_PARTICIPANT || '0x6CeD8D6Bad8Dfd2e60
 const challenge = process.env.AROVAQ_FORK_CHALLENGE || '0xfd0bc253189f58fb441b135ed4b608bc3a435b84';
 const characterId = BigInt(process.env.AROVAQ_FORK_CHARACTER_ID || '65');
 const itemId = BigInt(process.env.AROVAQ_FORK_ITEM_ID || '6488');
+const simulationLabel = 'LOCAL FORK SIMULATION — NOT MAINNET';
+const say = (message) => console.log(`[${simulationLabel}] ${message}`);
+const rewardClaimedEvent = parseAbiItem('event RewardClaimed(address indexed participant,address indexed recipient,uint256 amount,uint256 characterId)');
 const anvil = spawn('anvil', [
   '--host', '127.0.0.1', '--port', '8547', '--chain-id', '31338',
   '--fork-url', upstream, '--silent',
 ], { stdio: 'ignore' });
 
 function cast(args, timeout = 60_000) {
-  return execFileSync('cast', [...args, '--rpc-url', rpcUrl], { encoding: 'utf8', timeout }).trim();
+  return execFileSync('cast', [...args, '--rpc-url', rpcUrl], {
+    encoding: 'utf8', timeout,
+    env: { ...process.env, FOUNDRY_DISABLE_NIGHTLY_WARNING: 'true' },
+  }).trim();
 }
 
 async function rpc(method, params = []) {
@@ -31,6 +38,15 @@ async function rpc(method, params = []) {
   return result.result;
 }
 
+async function waitForReceipt(hash) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const receipt = await rpc('eth_getTransactionReceipt', [hash]);
+    if (receipt) return receipt;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  return null;
+}
+
 async function waitReady() {
   for (let i = 0; i < 160; i++) {
     if (anvil.exitCode !== null) throw new Error('Local Monad fork exited before startup.');
@@ -42,12 +58,15 @@ async function waitReady() {
   throw new Error('Timed out waiting for local Monad fork.');
 }
 
-function send(to, signature, args = [], value) {
-  const tx = ['send', '--unlocked', '--from', participant, to, signature, ...args];
+async function send(to, signature, args = [], value) {
+  const tx = ['send', '--async', '--unlocked', '--from', participant, to, signature, ...args];
   if (value !== undefined) tx.push('--value', value.toString());
   const output = cast(tx);
   const hash = output.match(/0x[a-fA-F0-9]{64}/)?.[0];
   if (!hash) throw new Error(`Local fork transaction returned no hash: ${signature}`);
+  const receipt = await waitForReceipt(hash);
+  if (!receipt) throw new Error(`Local fork transaction has no receipt: ${signature} (${hash})`);
+  if (receipt.status !== '0x1') throw new Error(`Local fork transaction reverted: ${signature} (${hash})`);
   return hash;
 }
 
@@ -68,6 +87,7 @@ try {
   const registration = read(challenge, 'registrations(address)(uint256,uint32,uint64,bool,bool)', [participant])
     .split(/\s+/).filter(Boolean);
   const [registeredCharacter, baseline, target, registered, claimed] = registration;
+  const reward = readBigInt(challenge, 'rewardPerSuccess()(uint256)');
 
   if (liveOwner.toLowerCase() !== participant.toLowerCase()) throw new Error('Fork character owner does not match the configured participant.');
   if (liveLevel !== 1n || BigInt(registeredCharacter) !== characterId || BigInt(baseline) !== 1n || BigInt(target) !== 2n || registered !== 'true' || claimed !== 'false') {
@@ -78,15 +98,15 @@ try {
   await rpc('anvil_impersonateAccount', [participant]);
   await rpc('anvil_setBalance', [participant, '0x3635c9adc5dea00000']); // 1,000 local MON; fork only.
 
-  console.log('FORK / SIMULATION — local Anvil writes only; Monad Mainnet remains unchanged.');
-  console.log(`Fork base block: ${baseBlock}`);
-  console.log(`Real ChainMMO character #${characterId}: owner ${liveOwner}, best level ${liveLevel}`);
-  console.log(`Forked Arovaq challenge: ${challenge}; registration baseline ${baseline}, target ${target}`);
+  say('LOCAL ANVIL WRITES ONLY; MONAD MAINNET REMAINS UNCHANGED.');
+  say(`Fork base block: ${baseBlock}`);
+  say(`ChainMMO character #${characterId}: owner ${liveOwner}, best level ${liveLevel}`);
+  say(`Arovaq challenge: ${challenge}; registered baseline ${baseline}, target ${target}; reward ${formatEther(reward)} MON`);
 
   const equipped = BigInt(read(gameWorld, 'equippedItemBySlot(uint256,uint8)(uint256)', [characterId.toString(), '2']));
   if (equipped !== itemId) {
-    const tx = send(gameWorld, 'equipItem(uint256,uint256)', [characterId.toString(), itemId.toString()]);
-    console.log(`FORK TX equip item #${itemId}: ${tx}`);
+    const tx = await send(gameWorld, 'equipItem(uint256,uint256)', [characterId.toString(), itemId.toString()]);
+    say(`Equip item #${itemId} (fork transaction): ${tx}`);
   }
 
   let forkLevel = liveLevel;
@@ -99,36 +119,50 @@ try {
       'hashDungeonRun(bytes32,address,uint256,uint64,uint8,uint32,uint8)(bytes32)',
       [secret, participant, characterId.toString(), nonce.toString(), '0', '2', '0']);
 
-    const commitTx = send(gameWorld,
+    const commitTx = await send(gameWorld,
       'commitActionWithVariance(uint256,uint8,bytes32,uint64,uint8)',
       [characterId.toString(), '2', hash, nonce.toString(), '0'], fee,
     );
     await rpc('anvil_mine', ['0x2']);
-    const revealTx = send(gameWorld, 'revealStartDungeon(uint256,bytes32,uint8,uint32,uint8)', [
+    const revealTx = await send(gameWorld, 'revealStartDungeon(uint256,bytes32,uint8,uint32,uint8)', [
       commitId.toString(), secret, '0', '2', '0',
     ]);
-    console.log(`FORK DUNGEON ${attempt}: commit ${commitTx}; reveal ${revealTx}`);
+    say(`Dungeon attempt ${attempt}: commit ${commitTx}; reveal ${revealTx}`);
 
     const potions = `[1,${Array(10).fill(0).join(',')}]`;
     const abilities = `[${Array(11).fill(2).join(',')}]`;
-    const resolvedTx = send(gameWorld, 'resolveRooms(uint256,uint8[],uint8[])', [characterId.toString(), potions, abilities]);
+    const resolvedTx = await send(gameWorld, 'resolveRooms(uint256,uint8[],uint8[])', [characterId.toString(), potions, abilities]);
     forkLevel = readBigInt(gameWorld, 'characterBestLevel(uint256)(uint32)', [characterId.toString()]);
-    console.log(`FORK ROOMS ${attempt}: ${resolvedTx}; best level ${forkLevel}`);
+    say(`Dungeon resolved ${attempt}: ${resolvedTx}; canonical fork best level ${forkLevel}`);
   }
 
   if (forkLevel < 2n) throw new Error('Local fork gameplay did not reach level 2 within five attempts. No Mainnet state was changed.');
-  const claimTx = send(challenge, 'claim(address)', [participant]);
+  const claimTx = await send(challenge, 'claim(address)', [participant]);
+  const receipt = await waitForReceipt(claimTx);
+  if (!receipt) throw new Error('Fork claim transaction has no local receipt.');
+  const payout = receipt.logs
+    .filter(log => log.address.toLowerCase() === challenge.toLowerCase())
+    .map(log => {
+      try { return decodeEventLog({ abi: [rewardClaimedEvent], data: log.data, topics: log.topics }); }
+      catch { return undefined; }
+    })
+    .find(log => log?.eventName === 'RewardClaimed');
   const successfulClaims = read(challenge, 'successfulClaims()(uint32)');
   const remainingFunding = read(challenge, 'remainingFunding()(uint256)');
   const finalRegistration = read(challenge, 'registrations(address)(uint256,uint32,uint64,bool,bool)', [participant]).split(/\s+/).filter(Boolean);
-  if (successfulClaims !== '1' || remainingFunding !== '0' || finalRegistration[4] !== 'true') {
+  const challengeBalance = BigInt(await rpc('eth_getBalance', [challenge, 'latest']));
+  if (
+    receipt.status !== '0x1' || !payout || payout.args.participant.toLowerCase() !== participant.toLowerCase()
+      || payout.args.recipient.toLowerCase() !== participant.toLowerCase() || payout.args.amount !== reward
+      || successfulClaims !== '1' || remainingFunding !== '0' || finalRegistration[4] !== 'true'
+      || challengeBalance !== 0n
+  ) {
     throw new Error('Local fork claim accounting did not reach the expected terminal state.');
   }
-  console.log(`FORK CLAIM: ${claimTx}`);
-  console.log(`FORK RESULT: canonical game level ${forkLevel}; Arovaq claim settled; remaining funding ${remainingFunding}.`);
-  console.log('This is a fork simulation, not a Monad Mainnet progression or claim.');
+  say(`Arovaq claim (fork transaction): ${claimTx}; receipt status ${receipt.status}; gas used ${BigInt(receipt.gasUsed).toString()}`);
+  say(`VERIFIED FORK RESULT: canonical best level ${forkLevel}; registration claimed ${finalRegistration[4]}; payout ${formatEther(payout.args.amount)} MON to ${payout.args.recipient}; successful claims ${successfulClaims}; remaining reward funding ${remainingFunding}; challenge balance ${challengeBalance}.`);
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
+  console.error(`[${simulationLabel}] ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 } finally {
   anvil.kill('SIGTERM');
