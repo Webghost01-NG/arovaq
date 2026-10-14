@@ -131,4 +131,6 @@ For Foundry scripts, signing keys belong only in an ignored local environment fi
 
 Arovaq was submitted to Monad Metropolis 2026 in the Social, Attention & Culture track. See [HACKATHON.md](HACKATHON.md) for the concise project record. Pitch and demo videos were recorded and uploaded by the project owner; their URLs are not maintained in this repository.
 
+For the final judge walkthrough, see [DEMO_RECORDING_GUIDE.md](DEMO_RECORDING_GUIDE.md). It separates verified Mainnet deployment/registration evidence from the local fork progression and claim simulation.
+
 See [ROADMAP.md](ROADMAP.md) for the post-submission priority list. The first step is transaction-history reconciliation; until then, no further Mainnet writes are safe.
