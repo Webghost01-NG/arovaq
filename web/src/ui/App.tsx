@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatEther, parseEther, type Address, type Hash } from 'viem';
 import { config, MAINNET_PENDING } from '../config/environment';
 import {
@@ -81,6 +81,7 @@ export default function App() {
   const [observedLevel, setObservedLevel] = useState<number | null>(null);
   const [chainTimestamp, setChainTimestamp] = useState<bigint | null>(null);
   const [form, setForm] = useState({ delta: '3', reward: '1', slots: '10', days: '7' });
+  const challengeListRequest = useRef(0);
 
   const pending = config.mode === 'MONAD_MAINNET' && !config.factory;
   const mainnetReadOnly = config.mode === 'MONAD_MAINNET' && Boolean(config.factory) && !config.writable;
@@ -104,11 +105,17 @@ export default function App() {
     return () => { active = false; window.clearInterval(timer); };
   }, []);
   const refreshList = useCallback(async () => {
+    const request = ++challengeListRequest.current;
     if (!config.factory) { setChallenges([]); setLoading(false); return; }
     setLoading(true);
-    try { setChallenges(await discoverChallenges()); }
-    catch (e) { setFlash({ kind: 'error', message: friendlyError(e) }); }
-    finally { setLoading(false); }
+    try {
+      const next = await discoverChallenges();
+      if (request === challengeListRequest.current) setChallenges(next);
+    } catch (e) {
+      if (request === challengeListRequest.current) setFlash({ kind: 'error', message: friendlyError(e) });
+    } finally {
+      if (request === challengeListRequest.current) setLoading(false);
+    }
   }, []);
   useEffect(() => { void refreshList(); }, [refreshList]);
 

@@ -61,7 +61,10 @@ export async function waitForConfirmation(hash: Hash) {
   return receipt;
 }
 export async function discoverChallenges(): Promise<Address[]> {
-  const latest = await publicClient.getBlockNumber();
+  // The default block-number cache can hide a challenge mined just after the
+  // initial scan. Discovery runs immediately after writes, so always read a
+  // fresh head before querying the factory event range.
+  const latest = await publicClient.getBlockNumber({ cacheTime: 0 });
   const logs = await fetchInBlockRanges(config.factoryStartBlock, latest, (fromBlock, toBlock) =>
     publicClient.getContractEvents({
       address: requireFactory(), abi: factoryAbi, eventName: 'ChallengeCreated', fromBlock, toBlock,
